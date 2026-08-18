@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Social-Media-Tabelle</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Content-Planung</p>
+      <h1>Social-Media-Tabelle</h1>
+      <p class="intro">Medien ablegen, Vorschau prüfen und den zugehörigen Beitragstext erfassen.</p>
+    </header>
+    <section class="table" aria-label="Social-Media-Inhalt">
+      <div class="table-head"><span>Bild oder Video</span><span>Beitragstext</span></div>
+      <div class="table-row">
+        <div class="media-cell">
+          <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Bild oder Video auswählen">
+            <input id="file-input" type="file" accept="image/*,video/*" hidden>
+            <div id="placeholder" class="placeholder">
+              <span class="icon" aria-hidden="true">↑</span>
+              <strong>Datei hierher ziehen</strong>
+              <span>oder zum Auswählen klicken</span>
+              <small>Unterstützt Bilder und Videos</small>
+            </div>
+            <div id="preview" class="preview" hidden></div>
+          </div>
+          <button id="remove-button" type="button" hidden>Medium entfernen</button>
+        </div>
+        <div class="text-cell">
+          <label for="post-text">Text für den Social-Media-Beitrag</label>
+          <textarea id="post-text" rows="10" placeholder="Schreibe hier deinen Beitragstext …"></textarea>
+          <small class="counter"><span id="character-count">0</span> Zeichen</small>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
