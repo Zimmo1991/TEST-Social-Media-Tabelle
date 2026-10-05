@@ -384,6 +384,11 @@ body.is-resizing-rows * { cursor: row-resize !important; }
 .customer-text-cell.customer-text-approved .proofreading-field { background: #f5fcf7; }
 .customer-text-cell.customer-text-approved .content-text, .customer-text-cell.customer-text-approved .translated-content-text { border-color: #8bd5aa; background: #f5fcf7; }
 .customer-text-cell.customer-text-approved .customer-text-ok-control { color: #17784b; }
+.content-table tbody tr.customer-approved-row > td:not(.week-cell) { background: #effaf3; box-shadow: inset 0 1px 0 #b9e7cc, inset 0 -1px 0 #b9e7cc; }
+.content-table tbody tr.customer-approved-row > td:not(.week-cell):first-of-type { box-shadow: inset 1px 0 0 #83d4a5, inset 0 1px 0 #b9e7cc, inset 0 -1px 0 #b9e7cc; }
+.content-table tbody tr.customer-approved-row > td:not(.week-cell):last-of-type { box-shadow: inset -1px 0 0 #83d4a5, inset 0 1px 0 #b9e7cc, inset 0 -1px 0 #b9e7cc; }
+.content-table tbody tr.customer-approved-row .content-text, .content-table tbody tr.customer-approved-row .translated-content-text, .content-table tbody tr.customer-approved-row .change-message-input { border-color: #8bd5aa; background: #f5fcf7; }
+.content-table tbody tr.customer-approved-row .proofreading-field { background: #f5fcf7; }
 .translation-feedback { min-width: 0; margin-right: auto; overflow: hidden; color: #2d8b61; font-size: .57rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .translation-feedback.error { color: #b43d52; }
 .translation-language-switch { display: inline-flex; gap: 3px; border-radius: 8px; padding: 2px; background: #f0f2f6; }

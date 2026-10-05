@@ -3011,7 +3011,7 @@ function renderWeekRows(table, year, weekNumber) {
     };
     const orderedCells = tableColumnOrder(table).map(key => cells[key] ?? "").join("");
 
-    return `<tr class="${isStory ? "story-row" : "post-row"} ${itemIndex === items.length - 1 ? "week-end" : ""} ${isCutSource ? "row-cut-source" : ""}" data-year="${year}" data-week="${weekNumber}" data-item-index="${itemIndex}"${customRowHeight ? ` data-year-week-height="custom" style="--year-week-row-height: ${customRowHeight}px"` : ""}>
+    return `<tr class="${isStory ? "story-row" : "post-row"} ${item.approved ? "customer-approved-row" : ""} ${itemIndex === items.length - 1 ? "week-end" : ""} ${isCutSource ? "row-cut-source" : ""}" data-year="${year}" data-week="${weekNumber}" data-item-index="${itemIndex}"${customRowHeight ? ` data-year-week-height="custom" style="--year-week-row-height: ${customRowHeight}px"` : ""}>
       ${orderedCells}
     </tr>`;
   }).join("");
@@ -4719,6 +4719,7 @@ tableBody.addEventListener("change", event => {
   if (event.target.matches(".approved-input")) {
     pushUndoState("Kundenfreigabe geändert");
     updateItemFromRow(row, { approved: event.target.checked });
+    row.classList.toggle("customer-approved-row", event.target.checked);
     event.target.closest("td").querySelector(".status-label").textContent = event.target.checked ? "Bestätigt" : "Offen";
   }
   if (event.target.matches("[data-customer-text-approval]")) {
