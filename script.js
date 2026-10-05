@@ -3696,6 +3696,7 @@ async function recognizePendingMediaText() {
   context.running = true;
   context.recognizeButton.disabled = true;
   context.saveButton.disabled = true;
+  context.copyButtons.forEach(button => { button.disabled = true; });
   context.status.className = "media-ocr-status loading";
   context.status.textContent = "Bildtext wird lokal erkannt …";
   try {
@@ -3721,9 +3722,62 @@ async function recognizePendingMediaText() {
       context.recognizeButton.disabled = false;
       context.recognizeButton.textContent = "Neu erkennen";
       context.saveButton.disabled = false;
+      updatePendingMediaOcrCopyButtons(context);
       context.textarea.focus();
     }
   }
+}
+
+function updatePendingMediaOcrCopyButtons(context = pendingMediaOcr) {
+  if (!context) return;
+  const disabled = context.running || !String(context.textarea.value ?? "").trim();
+  context.copyButtons.forEach(button => { button.disabled = disabled; });
+}
+
+function copyPendingMediaOcrText(target, button) {
+  const context = pendingMediaOcr;
+  if (!context || context.running) return;
+  const text = String(context.textarea.value ?? "").replace(/\r\n?/g, "\n").trim();
+  if (!text) {
+    context.status.className = "media-ocr-status error";
+    context.status.textContent = "Zuerst muss ein Text erkannt oder eingegeben werden.";
+    return;
+  }
+  const isGerman = target === "text";
+  const fieldLabel = isGerman ? "Beitragstext Deutsch" : "Beitragstext ITA / ENG";
+  const existingText = String((isGerman ? context.item.text : context.item.textItalian) ?? "").trim();
+  if (existingText && existingText !== text && !window.confirm(`Im Feld „${fieldLabel}“ steht bereits Text. Soll dieser ersetzt werden?`)) return;
+  if (existingText === text) {
+    context.status.className = "media-ocr-status success";
+    context.status.textContent = `Der erkannte Text steht bereits in „${fieldLabel}“.`;
+    return;
+  }
+
+  pushUndoState(`Erkannten Bildtext nach ${fieldLabel} kopiert`);
+  if (isGerman) context.item.text = text;
+  else setManualTranslationText(context.item, text);
+  saveState();
+
+  const targetTextarea = context.row.querySelector(isGerman ? ".content-text" : ".translated-content-text");
+  if (targetTextarea) {
+    targetTextarea.value = text;
+    delete targetTextarea.dataset.undoCaptured;
+    const characterCount = targetTextarea.closest("td")?.querySelector(".character-count");
+    if (characterCount) characterCount.textContent = `${text.length} Zeichen`;
+    if (!isGerman) targetTextarea.closest("td")?.querySelectorAll("[data-translate-language]").forEach(control => control.classList.remove("active"));
+    scheduleProofreading(targetTextarea, true);
+  }
+  refreshRowCutControl(context.row);
+  context.status.className = "media-ocr-status success";
+  context.status.textContent = `In „${fieldLabel}“ übernommen und gespeichert.`;
+  const originalLabel = button.textContent;
+  button.classList.add("copied");
+  button.textContent = "✓ Kopiert";
+  window.setTimeout(() => {
+    if (!button.isConnected) return;
+    button.classList.remove("copied");
+    button.textContent = originalLabel;
+  }, 1500);
 }
 
 function savePendingMediaOcrText(value) {
@@ -3762,6 +3816,7 @@ function openMediaOcrEditor(button) {
     <p class="media-ocr-language">Erkennung: Deutsch · Italienisch · Englisch</p>
     <textarea rows="6" maxlength="10000" spellcheck="true" lang="de" aria-label="Erkannter und korrigierbarer Bildtext" placeholder="Erkannter Bildtext erscheint hier …"></textarea>
     <p class="media-ocr-status" aria-live="polite"></p>
+    <div class="media-ocr-copy-actions" aria-label="Erkannten Text in ein Beitragstextfeld übernehmen"><button class="secondary-button" type="button" data-ocr-copy-target="text">Nach Deutsch kopieren</button><button class="secondary-button" type="button" data-ocr-copy-target="textItalian">Nach ITA / ENG kopieren</button></div>
     <div class="media-ocr-editor-actions"><button class="danger-text-button media-ocr-delete" type="button">Text löschen</button><button class="secondary-button media-ocr-recognize" type="button">${savedText ? "Neu erkennen" : "Text erkennen"}</button><button class="secondary-button media-ocr-cancel" type="button">Abbrechen</button><button class="primary-button media-ocr-save" type="submit">Speichern</button></div>`;
   editor.querySelector(".media-ocr-editor-file").textContent = record.name || "Bild";
   const textarea = editor.querySelector("textarea");
@@ -3769,6 +3824,7 @@ function openMediaOcrEditor(button) {
   const recognizeButton = editor.querySelector(".media-ocr-recognize");
   const saveButton = editor.querySelector(".media-ocr-save");
   const deleteButton = editor.querySelector(".media-ocr-delete");
+  const copyButtons = [...editor.querySelectorAll("[data-ocr-copy-target]")];
   textarea.value = String(record.ocrText ?? "");
   deleteButton.hidden = !savedText;
   if (savedText) {
@@ -3776,7 +3832,7 @@ function openMediaOcrEditor(button) {
     status.textContent = "Gespeicherter Bildtext · kann direkt korrigiert werden";
   }
 
-  pendingMediaOcr = { slot, item, index, record, editor, textarea, status, recognizeButton, saveButton, running: false };
+  pendingMediaOcr = { slot, row, item, index, record, editor, textarea, status, recognizeButton, saveButton, copyButtons, running: false };
   slot.classList.add("is-editing-ocr");
   slot.append(editor);
 
@@ -3790,6 +3846,8 @@ function openMediaOcrEditor(button) {
   editor.querySelector(".media-ocr-editor-close").addEventListener("click", closeMediaOcrEditor);
   editor.querySelector(".media-ocr-cancel").addEventListener("click", closeMediaOcrEditor);
   recognizeButton.addEventListener("click", recognizePendingMediaText);
+  copyButtons.forEach(copyButton => copyButton.addEventListener("click", () => copyPendingMediaOcrText(copyButton.dataset.ocrCopyTarget, copyButton)));
+  textarea.addEventListener("input", () => updatePendingMediaOcrCopyButtons());
   deleteButton.addEventListener("click", () => {
     savePendingMediaOcrText("");
     closeMediaOcrEditor();
@@ -3801,6 +3859,7 @@ function openMediaOcrEditor(button) {
     button.focus();
   });
   textarea.focus();
+  updatePendingMediaOcrCopyButtons();
   if (!savedText) void recognizePendingMediaText();
 }
 
