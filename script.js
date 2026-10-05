@@ -249,6 +249,7 @@ let pendingOriginalDeletion = null;
 let viewerMediaItems = [];
 let viewerMediaIndex = 0;
 let pendingMediaNote = null;
+let pendingMediaOcr = null;
 let historyPreview = null;
 let loadedHistoryEntries = [];
 let loadedBackendMedia = [];
@@ -304,7 +305,9 @@ function repairStoredMediaCounts(savedState) {
           previewUrl: record.previewId ? `/api/planner-media/${encodeURIComponent(record.previewId)}` : "",
           archivedOriginalId: record.archivedOriginalId ? String(record.archivedOriginalId) : "",
           archivedOriginalName: record.archivedOriginalName ? String(record.archivedOriginalName) : "",
-          sourceReference: record.sourceReference ? String(record.sourceReference) : ""
+          sourceReference: record.sourceReference ? String(record.sourceReference) : "",
+          note: String(record.note ?? "").slice(0, 1000),
+          ocrText: String(record.ocrText ?? "").slice(0, 10_000)
         } : null) : [];
         item.textItalian = String(item.textItalian ?? "");
         normalizeTranslationEntries(item);
@@ -334,7 +337,8 @@ function persistentMediaRecord(record) {
     archivedOriginalId: record.archivedOriginalId || "",
     archivedOriginalName: record.archivedOriginalName || "",
     sourceReference: record.sourceReference || "",
-    note: String(record.note ?? "").slice(0, 1000)
+    note: String(record.note ?? "").slice(0, 1000),
+    ocrText: String(record.ocrText ?? "").slice(0, 10_000)
   };
 }
 
@@ -3520,12 +3524,13 @@ async function setItemCompleted(row, checked) {
   renderWorkspace();
 }
 
-function renderMediaNoteControls(record, zone) {
+function renderMediaNoteControls(record, zone, isImage = false) {
   const slot = zone.closest(".media-slot");
   if (!slot) return;
-  slot.querySelectorAll(".media-note-button, .media-note-tooltip, .media-note-editor").forEach(element => element.remove());
-  slot.classList.remove("is-editing-note");
+  slot.querySelectorAll(".media-note-button, .media-note-tooltip, .media-note-editor, .media-ocr-button, .media-ocr-editor").forEach(element => element.remove());
+  slot.classList.remove("is-editing-note", "is-editing-ocr");
   if (pendingMediaNote?.slot === slot) pendingMediaNote = null;
+  if (pendingMediaOcr?.slot === slot) pendingMediaOcr = null;
   const note = String(record?.note ?? "").trim();
   if (!historyPreview && !rolePreview) {
     const button = document.createElement("button");
@@ -3535,6 +3540,16 @@ function renderMediaNoteControls(record, zone) {
     button.title = note ? "Bemerkung bearbeiten" : "Bemerkung hinzufügen";
     button.innerHTML = '<span aria-hidden="true">✎</span>';
     slot.append(button);
+    if (isImage) {
+      const ocrButton = document.createElement("button");
+      const hasOcrText = Boolean(String(record?.ocrText ?? "").trim());
+      ocrButton.type = "button";
+      ocrButton.className = `media-ocr-button${hasOcrText ? " has-text" : ""}`;
+      ocrButton.setAttribute("aria-label", hasOcrText ? "Erkannten Bildtext bearbeiten" : "Text im Bild erkennen");
+      ocrButton.title = hasOcrText ? "Bildtext bearbeiten" : "Text im Bild erkennen";
+      ocrButton.textContent = "OCR";
+      slot.append(ocrButton);
+    }
   }
   if (note) {
     const tooltip = document.createElement("div");
@@ -3557,6 +3572,14 @@ function closeMediaNoteEditor() {
   pendingMediaNote = null;
 }
 
+function closeMediaOcrEditor() {
+  if (!pendingMediaOcr) return;
+  const { slot, editor } = pendingMediaOcr;
+  editor?.remove();
+  slot?.classList.remove("is-editing-ocr");
+  pendingMediaOcr = null;
+}
+
 function openMediaNoteEditor(button) {
   const slot = button.closest(".media-slot");
   const row = slot?.closest("tr[data-week]");
@@ -3568,6 +3591,7 @@ function openMediaNoteEditor(button) {
     closeMediaNoteEditor();
     return;
   }
+  closeMediaOcrEditor();
   closeMediaNoteEditor();
 
   const savedNote = String(record.note ?? "").trim();
@@ -3641,6 +3665,145 @@ function openMediaNoteEditor(button) {
   textarea.focus();
 }
 
+async function ocrBlobFromRecord(record) {
+  const sourceUrl = record.id
+    ? (record.serverUrl || `/api/planner-media/${encodeURIComponent(record.id)}`)
+    : (record.previewServerUrl || record.previewUrl || record.url);
+  if (!sourceUrl) throw new Error("Das Bild ist noch nicht vollständig hochgeladen.");
+  const response = await fetch(sourceUrl, { credentials: "same-origin" });
+  if (!response.ok) throw new Error("Das Bild konnte für die Texterkennung nicht geladen werden.");
+  const drawable = await loadImageDrawable(await response.blob());
+  try {
+    const sourceWidth = drawable.naturalWidth || drawable.width;
+    const sourceHeight = drawable.naturalHeight || drawable.height;
+    const dimensions = fittedPreviewSize(sourceWidth, sourceHeight, 3200);
+    const canvas = document.createElement("canvas");
+    canvas.width = dimensions.width;
+    canvas.height = dimensions.height;
+    const context = canvas.getContext("2d", { alpha: false });
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(drawable, 0, 0, canvas.width, canvas.height);
+    return canvasBlob(canvas, 0.94);
+  } finally {
+    drawable.close?.();
+  }
+}
+
+async function recognizePendingMediaText() {
+  const context = pendingMediaOcr;
+  if (!context || context.running) return;
+  context.running = true;
+  context.recognizeButton.disabled = true;
+  context.saveButton.disabled = true;
+  context.status.className = "media-ocr-status loading";
+  context.status.textContent = "Bildtext wird lokal erkannt …";
+  try {
+    const imageBlob = await ocrBlobFromRecord(context.record);
+    if (pendingMediaOcr !== context) return;
+    const form = new FormData();
+    form.append("tableId", currentTable()?.id || "");
+    form.append("image", imageBlob, "ocr-image.jpg");
+    const result = await apiRequest("/api/ocr", { method: "POST", body: form });
+    if (pendingMediaOcr !== context) return;
+    context.textarea.value = String(result.text || "");
+    context.status.className = "media-ocr-status success";
+    context.status.textContent = result.text
+      ? `Text erkannt · Sicherheit ${Number(result.confidence) || 0} % · jetzt direkt korrigierbar`
+      : "Auf diesem Bild wurde kein lesbarer Text erkannt.";
+  } catch (error) {
+    if (pendingMediaOcr !== context) return;
+    context.status.className = "media-ocr-status error";
+    context.status.textContent = error.message;
+  } finally {
+    if (pendingMediaOcr === context) {
+      context.running = false;
+      context.recognizeButton.disabled = false;
+      context.recognizeButton.textContent = "Neu erkennen";
+      context.saveButton.disabled = false;
+      context.textarea.focus();
+    }
+  }
+}
+
+function savePendingMediaOcrText(value) {
+  if (!pendingMediaOcr) return;
+  const { slot, item, record } = pendingMediaOcr;
+  const normalizedText = String(value ?? "").replace(/\r\n?/g, "\n").trim().slice(0, 10_000);
+  if (String(record.ocrText ?? "") === normalizedText) return;
+  pushUndoState(normalizedText ? "Erkannten Bildtext gespeichert" : "Erkannten Bildtext entfernt");
+  record.ocrText = normalizedText;
+  syncItemPersistentMedia(item);
+  saveState();
+  renderMediaRecord(record, slot.querySelector(".drop-zone"), Boolean(item.completed));
+}
+
+function openMediaOcrEditor(button) {
+  const slot = button.closest(".media-slot");
+  const row = slot?.closest("tr[data-week]");
+  const item = row ? itemDataFromRow(row) : null;
+  const index = Number(slot?.dataset.mediaIndex);
+  const record = item && Number.isInteger(index) ? itemMedia(item)[index] : null;
+  if (!slot || !item || !record) return;
+  if (pendingMediaOcr?.slot === slot) {
+    closeMediaOcrEditor();
+    return;
+  }
+  closeMediaNoteEditor();
+  closeMediaOcrEditor();
+
+  const savedText = String(record.ocrText ?? "").trim();
+  const editor = document.createElement("form");
+  editor.className = "media-ocr-editor";
+  editor.setAttribute("aria-label", savedText ? "Erkannten Bildtext bearbeiten" : "Text im Bild erkennen");
+  editor.innerHTML = `
+    <div class="media-ocr-editor-header"><strong>${savedText ? "Bildtext bearbeiten" : "Text im Bild erkennen"}</strong><button class="media-ocr-editor-close" type="button" aria-label="OCR-Feld schließen">×</button></div>
+    <span class="media-ocr-editor-file"></span>
+    <p class="media-ocr-language">Erkennung: Deutsch · Italienisch · Englisch</p>
+    <textarea rows="6" maxlength="10000" spellcheck="true" lang="de" aria-label="Erkannter und korrigierbarer Bildtext" placeholder="Erkannter Bildtext erscheint hier …"></textarea>
+    <p class="media-ocr-status" aria-live="polite"></p>
+    <div class="media-ocr-editor-actions"><button class="danger-text-button media-ocr-delete" type="button">Text löschen</button><button class="secondary-button media-ocr-recognize" type="button">${savedText ? "Neu erkennen" : "Text erkennen"}</button><button class="secondary-button media-ocr-cancel" type="button">Abbrechen</button><button class="primary-button media-ocr-save" type="submit">Speichern</button></div>`;
+  editor.querySelector(".media-ocr-editor-file").textContent = record.name || "Bild";
+  const textarea = editor.querySelector("textarea");
+  const status = editor.querySelector(".media-ocr-status");
+  const recognizeButton = editor.querySelector(".media-ocr-recognize");
+  const saveButton = editor.querySelector(".media-ocr-save");
+  const deleteButton = editor.querySelector(".media-ocr-delete");
+  textarea.value = String(record.ocrText ?? "");
+  deleteButton.hidden = !savedText;
+  if (savedText) {
+    status.className = "media-ocr-status success";
+    status.textContent = "Gespeicherter Bildtext · kann direkt korrigiert werden";
+  }
+
+  pendingMediaOcr = { slot, item, index, record, editor, textarea, status, recognizeButton, saveButton, running: false };
+  slot.classList.add("is-editing-ocr");
+  slot.append(editor);
+
+  editor.addEventListener("click", event => event.stopPropagation());
+  editor.addEventListener("submit", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    savePendingMediaOcrText(textarea.value);
+    closeMediaOcrEditor();
+  });
+  editor.querySelector(".media-ocr-editor-close").addEventListener("click", closeMediaOcrEditor);
+  editor.querySelector(".media-ocr-cancel").addEventListener("click", closeMediaOcrEditor);
+  recognizeButton.addEventListener("click", recognizePendingMediaText);
+  deleteButton.addEventListener("click", () => {
+    savePendingMediaOcrText("");
+    closeMediaOcrEditor();
+  });
+  editor.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    closeMediaOcrEditor();
+    button.focus();
+  });
+  textarea.focus();
+  if (!savedText) void recognizePendingMediaText();
+}
+
 function savePendingMediaNote(note) {
   if (!pendingMediaNote) return;
   const { slot, item, record } = pendingMediaNote;
@@ -3698,7 +3861,7 @@ function renderMediaRecord(record, zone, useCompletionPreview = false) {
   preview.hidden = false;
   zone.querySelector(".drop-placeholder").hidden = true;
   zone.closest(".media-slot")?.querySelector(".remove-media")?.removeAttribute("hidden");
-  renderMediaNoteControls(record, zone);
+  renderMediaNoteControls(record, zone, isImage);
 }
 
 function restoreVisibleMedia() {
@@ -3796,7 +3959,8 @@ function clearMedia(zone, deleteRemote = true) {
   zone.querySelector("input").value = "";
   const slot = zone.closest(".media-slot");
   if (pendingMediaNote?.slot === slot) closeMediaNoteEditor();
-  slot?.querySelectorAll(".media-note-button, .media-note-tooltip, .media-note-editor").forEach(element => element.remove());
+  if (pendingMediaOcr?.slot === slot) closeMediaOcrEditor();
+  slot?.querySelectorAll(".media-note-button, .media-note-tooltip, .media-note-editor, .media-ocr-button, .media-ocr-editor").forEach(element => element.remove());
   const slotCount = slot?.closest("tr[data-week]")?.querySelectorAll(".media-slot").length ?? 1;
   if (slot) slot.querySelector(".remove-media").hidden = slotCount <= 1;
   renderTableStorageUsage();
@@ -4600,6 +4764,13 @@ tableBody.addEventListener("click", event => {
     event.preventDefault();
     event.stopPropagation();
     openMediaNoteEditor(mediaNoteButton);
+    return;
+  }
+  const mediaOcrButton = event.target.closest(".media-ocr-button");
+  if (mediaOcrButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    openMediaOcrEditor(mediaOcrButton);
     return;
   }
   const uploadedMedia = event.target.closest(".preview img, .preview video");

@@ -17,6 +17,7 @@ import { translateFromGerman, translationConfiguration } from "./backend/transla
 import { emailConfiguration, emailIsConfigured, passwordResetEmail, sendEmail, subadminInvitationEmail } from "./backend/email.mjs";
 import { aiAgentConfiguration, prepareCustomerDraft, validateCustomerAiConfiguration } from "./backend/ai-agent.mjs";
 import { proofreadText } from "./backend/proofreading.mjs";
+import { recognizeImageText } from "./backend/ocr.mjs";
 
 const projectRoot = resolve(".");
 const localEnvironmentPath = resolve(process.env.ENV_FILE_PATH || ".env");
@@ -1225,6 +1226,21 @@ async function handleApi(request, response, url) {
       return sendJson(response, 200, await proofreadText(text, body.language, allowedWords));
     } catch (error) {
       return sendJson(response, 502, { error: error.message || "Die Rechtschreibprüfung konnte nicht abgeschlossen werden." });
+    }
+  }
+  if (pathname === "/api/ocr" && request.method === "POST") {
+    if (!signedInUser) return sendJson(response, 401, { error: "Bitte melde dich an." });
+    try {
+      const form = await readFormData(request, url);
+      const tableId = String(form.get("tableId") || "");
+      const image = form.get("image");
+      if (!userCanAccessTable(signedInUser, tableId)) return sendJson(response, 403, { error: "Du hast keinen Zugriff auf diese Kundentabelle." });
+      if (!image || typeof image.arrayBuffer !== "function" || image.size <= 0) return sendJson(response, 400, { error: "Für die Texterkennung fehlt das Bild." });
+      if (!new Set(["image/jpeg", "image/png"]).has(image.type)) return sendJson(response, 415, { error: "Die Texterkennung benötigt ein JPEG- oder PNG-Bild." });
+      if (image.size > 15 * 1024 * 1024) return sendJson(response, 413, { error: "Das Bild ist für die Texterkennung zu groß." });
+      return sendJson(response, 200, await recognizeImageText(Buffer.from(await image.arrayBuffer())));
+    } catch (error) {
+      return sendJson(response, Number(error.statusCode) || 502, { error: error.message || "Der Bildtext konnte nicht erkannt werden." });
     }
   }
   if (pathname === "/api/ai/config" && request.method === "GET") {

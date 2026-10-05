@@ -15,6 +15,7 @@
     "@cspell/dict-de-de": "^4.1.2",
     "@cspell/dict-en_us": "^4.4.40",
     "@cspell/dict-it-it": "^3.1.6",
-    "cspell-lib": "^10.3.3"
+    "cspell-lib": "^10.3.3",
+    "tesseract.js": "7.0.0"
   }
 }
