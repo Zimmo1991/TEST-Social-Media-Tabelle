@@ -1565,7 +1565,7 @@ function renderTableStorageUsage(table = currentTable()) {
   if (!tableStorageUsage || !tableStorageSize) return;
   const storage = tableMediaStorage(table);
   const gigabytes = storage.bytes / (1024 ** 3);
-  tableStorageSize.textContent = `${gigabytes.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} GB`;
+  tableStorageSize.textContent = `${gigabytes.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} GB`;
   const fileLabel = storage.fileCount === 1 ? "Datei" : "Dateien";
   tableStorageUsage.title = `${formatStorageSize(storage.bytes)} in ${storage.fileCount} ${fileLabel} (Originale und Vorschauen jeweils einmal gezählt)`;
   tableStorageUsage.setAttribute("aria-label", `${table?.name || "Kundentabelle"}: ${tableStorageSize.textContent} in ${storage.fileCount} ${fileLabel}`);
