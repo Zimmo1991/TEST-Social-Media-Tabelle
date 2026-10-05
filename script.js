@@ -3619,7 +3619,7 @@ function renderMediaNoteControls(record, zone) {
   if (pendingMediaNote?.slot === slot) pendingMediaNote = null;
   if (pendingMediaOcr?.slot === slot) pendingMediaOcr = null;
   const note = String(record?.note ?? "").trim();
-  if (!historyPreview && !rolePreview) {
+  if (!historyPreview) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `media-note-button${note ? " has-note" : ""}`;
@@ -3627,6 +3627,8 @@ function renderMediaNoteControls(record, zone) {
     button.title = note ? "Bemerkung bearbeiten" : "Bemerkung hinzufügen";
     button.innerHTML = '<span aria-hidden="true">✎</span>';
     slot.append(button);
+  }
+  if (!historyPreview && !rolePreview) {
     const ocrButton = document.createElement("button");
     const hasOcrText = Boolean(String(record?.ocrText ?? "").trim());
     const isVideo = String(record?.type ?? "").startsWith("video/");
