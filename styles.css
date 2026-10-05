@@ -337,6 +337,14 @@ body.is-resizing-rows * { cursor: row-resize !important; }
 .add-media-button:hover, .add-media-button:focus-visible, .add-media-button.dragging { border-color: #6757ed; background: #f5f3ff; box-shadow: 0 0 0 3px #6757ed17; }
 .content-text, .translated-content-text, .change-request { width: 100%; min-height: 96px; resize: vertical; border: 1px solid #dce1e8; border-radius: 9px; padding: 10px 11px; color: #263148; background: #fcfcfd; font-size: .75rem; line-height: 1.5; outline: none; }
 .content-text:focus, .translated-content-text:focus, .change-request:focus { border-color: #6757ed; box-shadow: 0 0 0 3px #6757ed17; }
+.customer-text-cell { position: relative; }
+.text-cell-layout { position: absolute; inset: 12px 13px; display: grid; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; gap: 5px; }
+.text-cell-layout > .proofreading-field { min-height: 0; height: 100%; }
+.text-cell-layout > .content-text, .text-cell-layout > .translated-content-text,
+.text-cell-layout > .proofreading-field > .content-text, .text-cell-layout > .proofreading-field > .translated-content-text { height: 100%; min-height: 0; resize: none; }
+.text-cell-layout.is-expanded > .content-text, .text-cell-layout.is-expanded > .translated-content-text,
+.text-cell-layout.is-expanded > .proofreading-field > .content-text, .text-cell-layout.is-expanded > .proofreading-field > .translated-content-text { overflow-y: hidden; }
+.content-table tr.text-row-expanded > td { height: var(--expanded-text-row-height) !important; }
 .proofreading-field { position: relative; border-radius: 9px; background: #fcfcfd; }
 .proofreading-field .content-text, .proofreading-field .translated-content-text { position: relative; z-index: 1; display: block; background: transparent; }
 .proofreading-highlights { position: absolute; z-index: 0; inset: 0; overflow: hidden; border: 1px solid transparent; border-radius: 9px; padding: 10px 11px; color: transparent; background: transparent; font-family: inherit; font-size: .75rem; line-height: 1.5; overflow-wrap: break-word; pointer-events: none; white-space: pre-wrap; }
@@ -419,6 +427,11 @@ body.is-resizing-rows * { cursor: row-resize !important; }
 .copy-contribution-button { display: inline-grid; width: 25px; height: 25px; place-items: center; border: 1px solid #ddd8ff; border-radius: 7px; padding: 0; color: #5b4ed7; background: #f4f2ff; font-size: .8rem; font-weight: 850; line-height: 1; transition: .15s ease; }
 .copy-contribution-button:hover, .copy-contribution-button:focus-visible { border-color: #6757ed; color: #fff; background: #6757ed; outline: none; }
 .copy-contribution-button.copied { border-color: #9bd8ba; color: #13724c; background: #e9f8f1; }
+.text-expand-button { display: inline-grid; width: 25px; height: 25px; flex: 0 0 25px; place-items: center; border: 1px solid #d6dce6; border-radius: 7px; padding: 0; color: #687387; background: #fff; font-size: .82rem; font-weight: 900; line-height: 1; transition: .15s ease; }
+.text-expand-button:hover, .text-expand-button:focus-visible, .text-cell-layout.is-expanded .text-expand-button { border-color: #6757ed; color: #fff; background: #6757ed; outline: none; }
+.text-expand-button[hidden] { display: none; }
+.text-expand-button span { transition: transform .16s ease; }
+.text-cell-layout.is-expanded .text-expand-button span { transform: rotate(180deg); }
 #fixed-hashtags-button.has-value { border-color: #cfc8ff; color: #4f40d2; background: #f0eeff; }
 .empty-state { padding: 70px 30px; color: #7d8798; text-align: center; }
 

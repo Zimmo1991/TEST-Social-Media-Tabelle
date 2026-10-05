@@ -815,6 +815,72 @@ function proofreadingWarning() {
   return `<span class="proofreading-warning" role="img" aria-label="Möglicher Schreibfehler" title="Möglicher Schreibfehler" hidden><span aria-hidden="true">!</span></span>`;
 }
 
+function textExpandButton(languageLabel) {
+  return `<button class="text-expand-button" type="button" aria-label="Gesamten ${languageLabel} Beitragstext anzeigen" title="Gesamten Text anzeigen" aria-expanded="false" hidden><span aria-hidden="true">↕</span></button>`;
+}
+
+let textOverflowRefreshFrame = 0;
+
+function scheduleTextOverflowRefresh() {
+  cancelAnimationFrame(textOverflowRefreshFrame);
+  textOverflowRefreshFrame = requestAnimationFrame(() => {
+    textOverflowRefreshFrame = 0;
+    refreshTextOverflowControls();
+  });
+}
+
+function refreshTextOverflowControls(root = tableBody) {
+  root.querySelectorAll(".text-cell-layout").forEach(layout => {
+    const textarea = layout.querySelector(".content-text, .translated-content-text");
+    const button = layout.querySelector(".text-expand-button");
+    if (!textarea || !button) return;
+    const expanded = layout.classList.contains("is-expanded");
+    const hasHiddenText = textarea.scrollHeight > textarea.clientHeight + 2;
+    button.hidden = !expanded && !hasHiddenText;
+    button.setAttribute("aria-expanded", String(expanded));
+    button.title = expanded ? "Textfeld wieder zuklappen" : "Gesamten Text anzeigen";
+    button.setAttribute("aria-label", expanded ? "Beitragstext zuklappen" : "Gesamten Beitragstext anzeigen");
+  });
+}
+
+function measuredTextareaContentHeight(textarea) {
+  const previousHeight = textarea.style.height;
+  textarea.style.height = "1px";
+  const height = textarea.scrollHeight;
+  textarea.style.height = previousHeight;
+  return height;
+}
+
+function updateExpandedTextRow(row) {
+  if (!row) return;
+  const expandedLayouts = [...row.querySelectorAll(".text-cell-layout.is-expanded")];
+  if (!expandedLayouts.length) {
+    row.classList.remove("text-row-expanded");
+    row.style.removeProperty("--expanded-text-row-height");
+    delete row.dataset.collapsedTextRowHeight;
+    scheduleTextOverflowRefresh();
+    return;
+  }
+  if (!row.dataset.collapsedTextRowHeight) row.dataset.collapsedTextRowHeight = String(Math.ceil(row.getBoundingClientRect().height));
+  const collapsedHeight = Number(row.dataset.collapsedTextRowHeight) || 132;
+  const requiredHeight = expandedLayouts.reduce((height, layout) => {
+    const textarea = layout.querySelector(".content-text, .translated-content-text");
+    const footer = layout.querySelector(".text-cell-footer");
+    if (!textarea || !footer) return height;
+    return Math.max(height, measuredTextareaContentHeight(textarea) + footer.offsetHeight + 35);
+  }, collapsedHeight);
+  row.style.setProperty("--expanded-text-row-height", `${Math.min(900, Math.ceil(requiredHeight))}px`);
+  row.classList.add("text-row-expanded");
+  requestAnimationFrame(() => refreshTextOverflowControls(row));
+}
+
+function toggleTextCellExpanded(button) {
+  const layout = button.closest(".text-cell-layout");
+  if (!layout) return;
+  layout.classList.toggle("is-expanded");
+  updateExpandedTextRow(layout.closest("tr[data-week]"));
+}
+
 function syncProofreadingScroll(textarea) {
   const highlights = textarea.closest(".proofreading-field")?.querySelector(".proofreading-highlights");
   if (!highlights) return;
@@ -2953,6 +3019,7 @@ function renderWorkspace() {
   scheduleChangeMessageEditExpiry();
   applyColumnWidths();
   observeVisibleProofreadingFields();
+  scheduleTextOverflowRefresh();
 }
 
 function renderWeekRows(table, year, weekNumber) {
@@ -2970,11 +3037,11 @@ function renderWeekRows(table, year, weekNumber) {
     const contentTypeLabel = isStory ? "Story" : "Post";
     const extraLabel = extraOrdinal(item) ? `Zusatz${isStory ? "story" : "post"} ${extraOrdinal(item)}` : "";
     const textApprovalControl = `<label class="customer-text-ok-control"><span>Text ok lt. Kunde</span><input type="checkbox" data-customer-text-approval="text" ${item.textCustomerApproved ? "checked" : ""} aria-label="Deutschen Beitragstext als vom Kunden bestätigt markieren"><span class="customer-text-ok-box" aria-hidden="true">✓</span></label>`;
-    const textCell = `${proofreadingField(item.text, "content-text", `Beitragstext für ${contentTypeLabel} ${periodLabel}`, "de")}<div class="text-cell-footer"><div class="text-cell-footer-left">${textApprovalControl}</div>${proofreadingWarning()}<small class="character-count">${item.text.length} Zeichen</small><button class="copy-contribution-button" type="button" aria-label="Deutschen und übersetzten Beitragstext mit festem Ende kopieren" title="Deutsch, Übersetzung und feste Hashtags kopieren"><span aria-hidden="true">⧉</span></button></div>`;
+    const textCell = `<div class="text-cell-layout">${proofreadingField(item.text, "content-text", `Beitragstext für ${contentTypeLabel} ${periodLabel}`, "de")}<div class="text-cell-footer"><div class="text-cell-footer-left">${textApprovalControl}</div>${textExpandButton("deutschen")}${proofreadingWarning()}<small class="character-count">${item.text.length} Zeichen</small><button class="copy-contribution-button" type="button" aria-label="Deutschen und übersetzten Beitragstext mit festem Ende kopieren" title="Deutsch, Übersetzung und feste Hashtags kopieren"><span aria-hidden="true">⧉</span></button></div></div>`;
     const translatedLanguages = new Set(normalizeTranslationEntries(item).map(entry => entry.language));
     const translationControls = isOwner() ? `<span class="translation-language-switch" role="group" aria-label="Deutschen Beitragstext übersetzen"><button class="translation-language-button ${translatedLanguages.has("it") ? "active" : ""}" type="button" data-translate-language="IT" aria-label="Ins Italienische übersetzen" title="Deutsch → Italienisch"><span aria-hidden="true">🇮🇹</span></button><button class="translation-language-button ${translatedLanguages.has("en") ? "active" : ""}" type="button" data-translate-language="EN-GB" aria-label="Ins Englische übersetzen" title="Deutsch → Englisch"><span aria-hidden="true">🇬🇧</span></button></span>` : "";
     const translatedTextApprovalControl = `<label class="customer-text-ok-control"><span>Text ok lt. Kunde</span><input type="checkbox" data-customer-text-approval="textItalian" ${item.textItalianCustomerApproved ? "checked" : ""} aria-label="Italienischen oder englischen Beitragstext als vom Kunden bestätigt markieren"><span class="customer-text-ok-box" aria-hidden="true">✓</span></label>`;
-    const translatedTextCell = `${proofreadingField(item.textItalian, "translated-content-text", `Beitragstext italienisch / englisch für ${contentTypeLabel} ${periodLabel}`, proofreadingLanguage(item, true))}<div class="text-cell-footer"><div class="text-cell-footer-left">${translatedTextApprovalControl}<span class="translation-feedback" aria-live="polite" hidden></span></div>${proofreadingWarning()}<small class="character-count">${item.textItalian.length} Zeichen</small>${translationControls}<button class="copy-contribution-button" type="button" aria-label="Deutschen und übersetzten Beitragstext mit festem Ende kopieren" title="Deutsch, Übersetzung und feste Hashtags kopieren"><span aria-hidden="true">⧉</span></button></div>`;
+    const translatedTextCell = `<div class="text-cell-layout">${proofreadingField(item.textItalian, "translated-content-text", `Beitragstext italienisch / englisch für ${contentTypeLabel} ${periodLabel}`, proofreadingLanguage(item, true))}<div class="text-cell-footer"><div class="text-cell-footer-left">${translatedTextApprovalControl}<span class="translation-feedback" aria-live="polite" hidden></span></div>${textExpandButton("italienischen oder englischen")}${proofreadingWarning()}<small class="character-count">${item.textItalian.length} Zeichen</small>${translationControls}<button class="copy-contribution-button" type="button" aria-label="Deutschen und übersetzten Beitragstext mit festem Ende kopieren" title="Deutsch, Übersetzung und feste Hashtags kopieren"><span aria-hidden="true">⧉</span></button></div></div>`;
     const customCells = Object.fromEntries(tableCustomColumns(table).map(column => {
       if (column.type === "checkbox") {
         return [`custom-${column.id}`, `<td class="check-cell custom-cell"><label class="check-control"><input class="custom-check" data-custom-column="${column.id}" type="checkbox" ${customValues[column.id] ? "checked" : ""}><span class="check-box">✓</span></label><span class="status-label">${escapeHtml(column.checkboxLabel)}</span></td>`];
@@ -4781,6 +4848,7 @@ tableBody.addEventListener("mousedown", event => {
     document.removeEventListener("mouseup", stop);
     if (resizeMode === "year") setYearViewRowHeight(table, currentHeight, rows.length);
     else setWeekRowHeight(table, currentHeight);
+    scheduleTextOverflowRefresh();
   };
 
   document.addEventListener("mousemove", move);
@@ -4858,6 +4926,11 @@ tableBody.addEventListener("input", event => {
   const characterCount = event.target.closest("td")?.querySelector(".character-count");
   if (characterCount) characterCount.textContent = `${event.target.value.length} Zeichen`;
   if (event.target.matches(".content-text, .translated-content-text")) scheduleProofreading(event.target);
+  if (event.target.matches(".content-text, .translated-content-text")) {
+    const layout = event.target.closest(".text-cell-layout");
+    if (layout?.classList.contains("is-expanded")) updateExpandedTextRow(row);
+    else scheduleTextOverflowRefresh();
+  }
   refreshRowCutControl(row);
 });
 
@@ -5036,6 +5109,13 @@ tableBody.addEventListener("click", event => {
     event.preventDefault();
     event.stopPropagation();
     void copyContributionText(copyContributionButton.closest("tr[data-week]"), copyContributionButton);
+    return;
+  }
+  const textExpandControl = event.target.closest(".text-expand-button");
+  if (textExpandControl) {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleTextCellExpanded(textExpandControl);
     return;
   }
   const instagramPlanButton = event.target.closest("[data-plan-instagram]");
@@ -6086,7 +6166,10 @@ mediaViewer.addEventListener("close", () => {
 window.addEventListener("beforeunload", () => {
   revokeAllRuntimeMedia();
 });
-window.addEventListener("resize", applyColumnWidths);
+window.addEventListener("resize", () => {
+  applyColumnWidths();
+  scheduleTextOverflowRefresh();
+});
 
 if (!state.sharedTableLayoutEnabled) {
   syncSharedTableLayout(currentTable() ?? state.tables[0]);
