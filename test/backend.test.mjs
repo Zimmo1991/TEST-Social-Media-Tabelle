@@ -330,7 +330,9 @@ test("plant und veröffentlicht einen freigegebenen Auftrag im Testmodus", async
       ],
       sharedTableLayoutEnabled: true,
       tableTemplateSourceId: "test-table",
-      tableTemplateSchema: { customColumns: [] }
+      tableTemplateSchema: { customColumns: [], yearViewRowHeight: 184 },
+      tableLayoutSourceId: "test-table",
+      tableLayoutSyncVersion: 2
     };
     const plannerSaveResponse = await authenticatedFetch("/api/planner-state", {
       method: "PUT",
@@ -362,6 +364,9 @@ test("plant und veröffentlicht einen freigegebenen Auftrag im Testmodus", async
     assert.equal(ownerPlanner.state.tables.find(table => table.id === "test-table").weeks["2026-1"].items[0].completed, true);
     assert.equal(ownerPlanner.state.tables.some(table => table.id === "evil-table"), false);
     assert.equal(ownerPlanner.state.tables.some(table => table.id === "secret-table"), true);
+    assert.equal(ownerPlanner.state.tableLayoutSourceId, "test-table");
+    assert.equal(ownerPlanner.state.tableLayoutSyncVersion, 2);
+    assert.equal(ownerPlanner.state.tableTemplateSchema.yearViewRowHeight, 184);
 
     const plannerMediaForm = new FormData();
     plannerMediaForm.append("tableId", "test-table");

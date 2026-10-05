@@ -350,7 +350,9 @@ function sanitizedPlannerState(value) {
     tables,
     sharedTableLayoutEnabled: Boolean(value.sharedTableLayoutEnabled),
     tableTemplateSourceId: typeof value.tableTemplateSourceId === "string" ? value.tableTemplateSourceId : "bergwerk",
-    tableTemplateSchema: value.tableTemplateSchema && typeof value.tableTemplateSchema === "object" ? value.tableTemplateSchema : null
+    tableTemplateSchema: value.tableTemplateSchema && typeof value.tableTemplateSchema === "object" ? value.tableTemplateSchema : null,
+    tableLayoutSourceId: typeof value.tableLayoutSourceId === "string" ? value.tableLayoutSourceId : "",
+    tableLayoutSyncVersion: Number.isFinite(Number(value.tableLayoutSyncVersion)) ? Number(value.tableLayoutSyncVersion) : 0
   };
 }
 

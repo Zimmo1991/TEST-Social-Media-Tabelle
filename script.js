@@ -9,6 +9,7 @@ const PLANNING_YEARS = Array.from({ length: PLANNING_END_YEAR - PLANNING_START_Y
 const MONTH_WEEKS_CACHE = new Map();
 const YEAR_VIEW_ROW_MIN_HEIGHT = 132;
 const YEAR_VIEW_ROW_MAX_HEIGHT = 650;
+const TABLE_LAYOUT_SYNC_VERSION = 2;
 const COMPLETION_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 const COMPLETION_PREVIEW_MAX_EDGE = 1800;
 const STANDARD_TABLE_COLUMNS = [
@@ -365,7 +366,9 @@ function serializablePlannerState() {
     tables: copy.tables,
     sharedTableLayoutEnabled: Boolean(copy.sharedTableLayoutEnabled),
     tableTemplateSourceId: copy.tableTemplateSourceId || "bergwerk",
-    tableTemplateSchema: copy.tableTemplateSchema || null
+    tableTemplateSchema: copy.tableTemplateSchema || null,
+    tableLayoutSourceId: copy.tableLayoutSourceId || "",
+    tableLayoutSyncVersion: Number(copy.tableLayoutSyncVersion) || 0
   };
 }
 
@@ -1348,7 +1351,10 @@ function setYearViewRowHeight(table, totalHeight, itemCount, persist = true) {
     row.dataset.yearWeekHeight = "custom";
     row.style.setProperty("--year-week-row-height", `${rowHeight}px`);
   });
-  if (persist) saveState();
+  if (persist) {
+    syncSharedTableLayout(table);
+    saveState();
+  }
   return rowHeight * itemCount;
 }
 
@@ -1420,7 +1426,8 @@ function sharedTableLayoutFrom(table) {
     removedStandardColumns: structuredClone(tableRemovedStandardColumns(table)),
     columnWidths: structuredClone(table?.columnWidths ?? {}),
     columnOrder: structuredClone(tableColumnOrder(table)),
-    weekViewRowHeight: Number(table?.weekViewRowHeight) || null
+    weekViewRowHeight: Number(table?.weekViewRowHeight) || null,
+    yearViewRowHeight: tableYearViewRowHeight(table)
   };
 }
 
@@ -1434,6 +1441,8 @@ function syncSharedTableLayout(sourceTable) {
     table.columnWidths = structuredClone(layout.columnWidths);
     table.columnOrder = structuredClone(layout.columnOrder);
     table.weekViewRowHeight = layout.weekViewRowHeight;
+    table.yearViewRowHeight = layout.yearViewRowHeight;
+    table.yearWeekHeights = {};
     if (layout.weekViewRowHeight !== null) return;
     Object.values(table.weeks ?? {}).forEach(week => {
       (week.items ?? []).forEach(item => { item.weekViewHeight = null; });
@@ -1443,6 +1452,8 @@ function syncSharedTableLayout(sourceTable) {
     ...(state.tableTemplateSchema ?? {}),
     ...structuredClone(layout)
   };
+  state.tableLayoutSourceId = sourceTable.id;
+  state.tableLayoutSyncVersion = TABLE_LAYOUT_SYNC_VERSION;
   state.sharedTableLayoutEnabled = true;
 }
 
@@ -1463,17 +1474,33 @@ function schemaFromTemplateTable(table) {
     removedStandardColumns: structuredClone(tableRemovedStandardColumns(table)),
     columnWidths: structuredClone(table?.columnWidths ?? {}),
     columnOrder: structuredClone(tableColumnOrder(table)),
-    weekViewRowHeight: Number(table?.weekViewRowHeight) || null
+    weekViewRowHeight: Number(table?.weekViewRowHeight) || null,
+    yearViewRowHeight: tableYearViewRowHeight(table)
   };
 }
 
 function refreshTableTemplateSchema() {
   state.tableTemplateSourceId = state.tableTemplateSourceId || "bergwerk";
   const sourceTable = state.tables.find(table => table.id === state.tableTemplateSourceId);
-  if (sourceTable) state.tableTemplateSchema = schemaFromTemplateTable(sourceTable);
-  if (!state.tableTemplateSchema) {
-    state.tableTemplateSchema = schemaFromTemplateTable(defaultState.tables.find(table => table.id === "bergwerk"));
-  }
+  const previousSchema = state.tableTemplateSchema ? structuredClone(state.tableTemplateSchema) : null;
+  const baseSchema = sourceTable
+    ? schemaFromTemplateTable(sourceTable)
+    : previousSchema ?? schemaFromTemplateTable(defaultState.tables.find(table => table.id === "bergwerk"));
+  const layoutSource = state.tables.find(table => table.id === state.tableLayoutSourceId);
+  const sharedLayout = layoutSource
+    ? sharedTableLayoutFrom(layoutSource)
+    : previousSchema
+      ? {
+          customColumns: structuredClone(previousSchema.customColumns ?? []),
+          removedCustomColumns: structuredClone(previousSchema.removedCustomColumns ?? []),
+          removedStandardColumns: structuredClone(previousSchema.removedStandardColumns ?? []),
+          columnWidths: structuredClone(previousSchema.columnWidths ?? {}),
+          columnOrder: structuredClone(previousSchema.columnOrder ?? []),
+          weekViewRowHeight: Number(previousSchema.weekViewRowHeight) || null,
+          yearViewRowHeight: Number(previousSchema.yearViewRowHeight) || null
+        }
+      : sharedTableLayoutFrom(sourceTable ?? state.tables[0]);
+  state.tableTemplateSchema = { ...baseSchema, ...sharedLayout };
   return structuredClone(state.tableTemplateSchema);
 }
 
@@ -1864,6 +1891,9 @@ async function loadCentralPlannerState() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ state: serializablePlannerState() })
     });
+  }
+  if (isOwner() && Number(state.tableLayoutSyncVersion) < TABLE_LAYOUT_SYNC_VERSION) {
+    syncSharedTableLayout(currentTable() ?? state.tables[0]);
   }
   plannerStateReady = true;
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
@@ -4868,6 +4898,7 @@ tableBody.addEventListener("dblclick", event => {
   if (state.viewMode === "year") {
     table.yearViewRowHeight = null;
     table.yearWeekHeights = {};
+    syncSharedTableLayout(table);
     renderWorkspace();
     saveState();
     return;
@@ -5395,7 +5426,7 @@ tableForm.addEventListener("submit", event => {
       columnWidths: structuredClone(template.columnWidths),
       columnOrder: structuredClone(template.columnOrder),
       weekViewRowHeight: template.weekViewRowHeight,
-      yearViewRowHeight: null,
+      yearViewRowHeight: template.yearViewRowHeight,
       hiddenWeeks: [],
       weeks: {}
     };

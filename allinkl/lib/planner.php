@@ -9,7 +9,7 @@ function sf_clean_state(mixed $state): array {
         if (!is_string($id) || !preg_match('/^[a-zA-Z0-9_-]{1,100}$/', $id) || isset($ids[$id])) socialflow_fail(400, 'Mindestens eine Kundentabelle hat eine ungültige Kennung.');
         $ids[$id] = true;
     }
-    return ['tables' => $state['tables'], 'sharedTableLayoutEnabled' => !empty($state['sharedTableLayoutEnabled']), 'tableTemplateSourceId' => is_string($state['tableTemplateSourceId'] ?? null) ? $state['tableTemplateSourceId'] : 'bergwerk', 'tableTemplateSchema' => is_array($state['tableTemplateSchema'] ?? null) ? $state['tableTemplateSchema'] : null];
+    return ['tables' => $state['tables'], 'sharedTableLayoutEnabled' => !empty($state['sharedTableLayoutEnabled']), 'tableTemplateSourceId' => is_string($state['tableTemplateSourceId'] ?? null) ? $state['tableTemplateSourceId'] : 'bergwerk', 'tableTemplateSchema' => is_array($state['tableTemplateSchema'] ?? null) ? $state['tableTemplateSchema'] : null, 'tableLayoutSourceId' => is_string($state['tableLayoutSourceId'] ?? null) ? $state['tableLayoutSourceId'] : '', 'tableLayoutSyncVersion' => is_numeric($state['tableLayoutSyncVersion'] ?? null) ? (int)$state['tableLayoutSyncVersion'] : 0];
 }
 
 function sf_stored_state(): array {
