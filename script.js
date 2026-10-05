@@ -3565,8 +3565,8 @@ function renderMediaNoteControls(record, zone) {
     const textKind = isVideo ? "Videotext" : "Bildtext";
     ocrButton.type = "button";
     ocrButton.className = `media-ocr-button${hasOcrText ? " has-text" : ""}`;
-    ocrButton.setAttribute("aria-label", hasOcrText ? `Erkannten ${textKind} bearbeiten` : `Text ${isVideo ? "in der Videomitte" : "im Bild"} erkennen`);
-    ocrButton.title = hasOcrText ? `${textKind} bearbeiten` : `Text ${isVideo ? "in der Videomitte" : "im Bild"} erkennen`;
+    ocrButton.setAttribute("aria-label", hasOcrText ? `Erkannten ${textKind} bearbeiten` : `Text ${isVideo ? `bei ${VIDEO_OCR_CAPTURE_PERCENT} % des Videos` : "im Bild"} erkennen`);
+    ocrButton.title = hasOcrText ? `${textKind} bearbeiten` : `Text ${isVideo ? `bei ${VIDEO_OCR_CAPTURE_PERCENT} % des Videos` : "im Bild"} erkennen`;
     ocrButton.textContent = "OCR";
     slot.append(ocrButton);
   }
@@ -3703,6 +3703,8 @@ function waitForVideoEvent(video, eventName, errorMessage) {
   });
 }
 
+const VIDEO_OCR_CAPTURE_PERCENT = 70;
+
 async function ocrBlobFromVideo(sourceBlob) {
   const objectUrl = URL.createObjectURL(sourceBlob);
   const video = document.createElement("video");
@@ -3715,7 +3717,7 @@ async function ocrBlobFromVideo(sourceBlob) {
     if (video.readyState < 2) await waitForVideoEvent(video, "loadeddata", "Das Videobild konnte nicht geladen werden.");
     const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
     const maximumTime = duration ? Math.max(0, duration - 0.05) : 0;
-    const targetTime = duration ? Math.min(duration / 2, maximumTime) : 0;
+    const targetTime = duration ? Math.min(duration * (VIDEO_OCR_CAPTURE_PERCENT / 100), maximumTime) : 0;
     if (targetTime > 0 && Math.abs(video.currentTime - targetTime) > 0.02) {
       const seeked = waitForVideoEvent(video, "seeked", "Das gewünschte Videobild konnte nicht geladen werden.");
       video.currentTime = targetTime;
@@ -3777,7 +3779,7 @@ async function recognizePendingMediaText() {
   context.copyButtons.forEach(button => { button.disabled = true; });
   context.status.className = "media-ocr-status loading";
   const isVideo = String(context.record?.type ?? "").startsWith("video/");
-  context.status.textContent = isVideo ? "Text in der Videomitte wird lokal erkannt …" : "Bildtext wird lokal erkannt …";
+  context.status.textContent = isVideo ? `Text bei ${VIDEO_OCR_CAPTURE_PERCENT} % der Videolänge wird lokal erkannt …` : "Bildtext wird lokal erkannt …";
   try {
     const imageBlob = await ocrBlobFromRecord(context.record);
     if (pendingMediaOcr !== context) return;
@@ -3789,9 +3791,9 @@ async function recognizePendingMediaText() {
     context.textarea.value = String(result.text || "");
     context.status.className = "media-ocr-status success";
     context.status.textContent = result.text
-      ? `${isVideo ? "Text aus der Videomitte" : "Text"} erkannt · Sicherheit ${Number(result.confidence) || 0} % · jetzt direkt korrigierbar`
+      ? `${isVideo ? `Text bei ${VIDEO_OCR_CAPTURE_PERCENT} % der Videolänge` : "Text"} erkannt · Sicherheit ${Number(result.confidence) || 0} % · jetzt direkt korrigierbar`
       : isVideo
-        ? "In der Videomitte wurde kein lesbarer Text erkannt."
+        ? `Bei ${VIDEO_OCR_CAPTURE_PERCENT} % des Videos wurde kein lesbarer Text erkannt.`
         : "Auf diesem Bild wurde kein lesbarer Text erkannt.";
   } catch (error) {
     if (pendingMediaOcr !== context) return;
@@ -3899,7 +3901,7 @@ function openMediaOcrEditor(button) {
   const savedText = String(record.ocrText ?? "").trim();
   const isVideo = String(record.type ?? "").startsWith("video/");
   const textKind = isVideo ? "Videotext" : "Bildtext";
-  const recognizeTitle = isVideo ? "Text in der Videomitte erkennen" : "Text im Bild erkennen";
+  const recognizeTitle = isVideo ? `Text bei ${VIDEO_OCR_CAPTURE_PERCENT} % des Videos erkennen` : "Text im Bild erkennen";
   const editor = document.createElement("form");
   editor.className = "media-ocr-editor";
   editor.setAttribute("aria-label", savedText ? `Erkannten ${textKind} bearbeiten` : recognizeTitle);
