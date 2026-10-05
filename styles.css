@@ -373,6 +373,17 @@ body.is-resizing-rows * { cursor: row-resize !important; }
 .character-count { display: block; margin-top: 5px; color: #a0a7b3; font-size: .62rem; text-align: right; }
 .text-cell-footer { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
 .text-cell-footer .character-count { margin-top: 0; }
+.text-cell-footer-left { display: flex; min-width: 0; align-items: center; gap: 6px; margin-right: auto; }
+.customer-text-ok-control { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; color: #768195; font-size: .59rem; font-weight: 750; cursor: pointer; white-space: nowrap; }
+.customer-text-ok-control input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.customer-text-ok-box { display: inline-grid; width: 18px; height: 18px; place-items: center; border: 1px solid #cfd6df; border-radius: 5px; color: transparent; background: #fff; font-size: .7rem; font-weight: 900; transition: .15s ease; }
+.customer-text-ok-control:hover .customer-text-ok-box, .customer-text-ok-control input:focus-visible + .customer-text-ok-box { border-color: #47ae77; box-shadow: 0 0 0 3px #47ae7718; }
+.customer-text-ok-control input:checked + .customer-text-ok-box { border-color: #25a764; color: #fff; background: #25a764; }
+.customer-text-cell { transition: background-color .18s ease, box-shadow .18s ease; }
+.customer-text-cell.customer-text-approved { background: #effaf3 !important; box-shadow: inset 0 0 0 1px #83d4a5; }
+.customer-text-cell.customer-text-approved .proofreading-field { background: #f5fcf7; }
+.customer-text-cell.customer-text-approved .content-text, .customer-text-cell.customer-text-approved .translated-content-text { border-color: #8bd5aa; background: #f5fcf7; }
+.customer-text-cell.customer-text-approved .customer-text-ok-control { color: #17784b; }
 .translation-feedback { min-width: 0; margin-right: auto; overflow: hidden; color: #2d8b61; font-size: .57rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .translation-feedback.error { color: #b43d52; }
 .translation-language-switch { display: inline-flex; gap: 3px; border-radius: 8px; padding: 2px; background: #f0f2f6; }

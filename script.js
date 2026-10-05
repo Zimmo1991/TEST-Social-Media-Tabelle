@@ -309,6 +309,8 @@ function repairStoredMediaCounts(savedState) {
           note: String(record.note ?? "").slice(0, 1000),
           ocrText: String(record.ocrText ?? "").slice(0, 10_000)
         } : null) : [];
+        item.textCustomerApproved = Boolean(item.textCustomerApproved);
+        item.textItalianCustomerApproved = Boolean(item.textItalianCustomerApproved);
         item.textItalian = String(item.textItalian ?? "");
         normalizeTranslationEntries(item);
         normalizeChangeComments(item);
@@ -917,7 +919,7 @@ function ensureCurrentTable() {
 }
 
 function createContentItem(type) {
-  return { type, approved: false, published: false, completed: false, text: "", textItalian: "", translationEntries: [], translationLanguage: "", changes: "", changeComments: [], changeMessages: [], mediaCount: 1, weekViewHeight: null };
+  return { type, approved: false, published: false, completed: false, text: "", textCustomerApproved: false, textItalian: "", textItalianCustomerApproved: false, translationEntries: [], translationLanguage: "", changes: "", changeComments: [], changeMessages: [], mediaCount: 1, weekViewHeight: null };
 }
 
 function isoWeekNumber(date) {
@@ -1045,7 +1047,9 @@ function weekItems(table, weekNumber, year = PLANNING_START_YEAR) {
       approved: Boolean(storedWeek.approved),
       published: Boolean(storedWeek.published),
       text: storedWeek.text ?? "",
+      textCustomerApproved: Boolean(storedWeek.textCustomerApproved),
       textItalian: storedWeek.textItalian ?? "",
+      textItalianCustomerApproved: Boolean(storedWeek.textItalianCustomerApproved),
       translationEntries: storedWeek.translationEntries ?? [],
       translationLanguage: storedWeek.translationLanguage ?? "",
       changes: storedWeek.changes ?? "",
@@ -1084,7 +1088,9 @@ function weekItems(table, weekNumber, year = PLANNING_START_YEAR) {
   items.forEach(item => {
     item.mediaCount = Math.max(1, Number(item.mediaCount) || 1);
     item.text = String(item.text ?? "");
+    item.textCustomerApproved = Boolean(item.textCustomerApproved);
     item.textItalian = String(item.textItalian ?? "");
+    item.textItalianCustomerApproved = Boolean(item.textItalianCustomerApproved);
     normalizeTranslationEntries(item);
     normalizeChangeComments(item);
   });
@@ -1954,9 +1960,13 @@ function openAiAgentDialog() {
 }
 
 function assignAiDraftValue(item, key, value) {
-  if (key === "text") item.text = String(value || "");
+  if (key === "text") {
+    item.text = String(value || "");
+    item.textCustomerApproved = false;
+  }
   else if (key === "textItalian") {
     item.textItalian = String(value || "");
+    item.textItalianCustomerApproved = false;
     item.translationEntries = item.textItalian ? [{ language: "it", text: item.textItalian }] : [];
     item.translationLanguage = item.textItalian ? "it" : "";
   } else if (key.startsWith("custom-")) {
@@ -2956,10 +2966,12 @@ function renderWeekRows(table, year, weekNumber) {
     const periodLabel = monthWeekLabel(year, weekNumber);
     const contentTypeLabel = isStory ? "Story" : "Post";
     const extraLabel = extraOrdinal(item) ? `Zusatz${isStory ? "story" : "post"} ${extraOrdinal(item)}` : "";
-    const textCell = `${proofreadingField(item.text, "content-text", `Beitragstext für ${contentTypeLabel} ${periodLabel}`, "de")}<div class="text-cell-footer">${proofreadingWarning()}<small class="character-count">${item.text.length} Zeichen</small><button class="copy-contribution-button" type="button" aria-label="Deutschen und übersetzten Beitragstext mit festem Ende kopieren" title="Deutsch, Übersetzung und feste Hashtags kopieren"><span aria-hidden="true">⧉</span></button></div>`;
+    const textApprovalControl = `<label class="customer-text-ok-control"><span>Text ok lt. Kunde</span><input type="checkbox" data-customer-text-approval="text" ${item.textCustomerApproved ? "checked" : ""} aria-label="Deutschen Beitragstext als vom Kunden bestätigt markieren"><span class="customer-text-ok-box" aria-hidden="true">✓</span></label>`;
+    const textCell = `${proofreadingField(item.text, "content-text", `Beitragstext für ${contentTypeLabel} ${periodLabel}`, "de")}<div class="text-cell-footer"><div class="text-cell-footer-left">${textApprovalControl}</div>${proofreadingWarning()}<small class="character-count">${item.text.length} Zeichen</small><button class="copy-contribution-button" type="button" aria-label="Deutschen und übersetzten Beitragstext mit festem Ende kopieren" title="Deutsch, Übersetzung und feste Hashtags kopieren"><span aria-hidden="true">⧉</span></button></div>`;
     const translatedLanguages = new Set(normalizeTranslationEntries(item).map(entry => entry.language));
     const translationControls = isOwner() ? `<span class="translation-language-switch" role="group" aria-label="Deutschen Beitragstext übersetzen"><button class="translation-language-button ${translatedLanguages.has("it") ? "active" : ""}" type="button" data-translate-language="IT" aria-label="Ins Italienische übersetzen" title="Deutsch → Italienisch"><span aria-hidden="true">🇮🇹</span></button><button class="translation-language-button ${translatedLanguages.has("en") ? "active" : ""}" type="button" data-translate-language="EN-GB" aria-label="Ins Englische übersetzen" title="Deutsch → Englisch"><span aria-hidden="true">🇬🇧</span></button></span>` : "";
-    const translatedTextCell = `${proofreadingField(item.textItalian, "translated-content-text", `Beitragstext italienisch / englisch für ${contentTypeLabel} ${periodLabel}`, proofreadingLanguage(item, true))}<div class="text-cell-footer"><span class="translation-feedback" aria-live="polite" hidden></span>${proofreadingWarning()}<small class="character-count">${item.textItalian.length} Zeichen</small>${translationControls}<button class="copy-contribution-button" type="button" aria-label="Deutschen und übersetzten Beitragstext mit festem Ende kopieren" title="Deutsch, Übersetzung und feste Hashtags kopieren"><span aria-hidden="true">⧉</span></button></div>`;
+    const translatedTextApprovalControl = `<label class="customer-text-ok-control"><span>Text ok lt. Kunde</span><input type="checkbox" data-customer-text-approval="textItalian" ${item.textItalianCustomerApproved ? "checked" : ""} aria-label="Italienischen oder englischen Beitragstext als vom Kunden bestätigt markieren"><span class="customer-text-ok-box" aria-hidden="true">✓</span></label>`;
+    const translatedTextCell = `${proofreadingField(item.textItalian, "translated-content-text", `Beitragstext italienisch / englisch für ${contentTypeLabel} ${periodLabel}`, proofreadingLanguage(item, true))}<div class="text-cell-footer"><div class="text-cell-footer-left">${translatedTextApprovalControl}<span class="translation-feedback" aria-live="polite" hidden></span></div>${proofreadingWarning()}<small class="character-count">${item.textItalian.length} Zeichen</small>${translationControls}<button class="copy-contribution-button" type="button" aria-label="Deutschen und übersetzten Beitragstext mit festem Ende kopieren" title="Deutsch, Übersetzung und feste Hashtags kopieren"><span aria-hidden="true">⧉</span></button></div>`;
     const customCells = Object.fromEntries(tableCustomColumns(table).map(column => {
       if (column.type === "checkbox") {
         return [`custom-${column.id}`, `<td class="check-cell custom-cell"><label class="check-control"><input class="custom-check" data-custom-column="${column.id}" type="checkbox" ${customValues[column.id] ? "checked" : ""}><span class="check-box">✓</span></label><span class="status-label">${escapeHtml(column.checkboxLabel)}</span></td>`];
@@ -2991,8 +3003,8 @@ function renderWeekRows(table, year, weekNumber) {
       week: weekCell,
       approval: `<td class="check-cell"><label class="check-control"><input class="approved-input" type="checkbox" ${item.approved ? "checked" : ""}><span class="check-box">✓</span></label><span class="status-label">${item.approved ? "Bestätigt" : "Offen"}</span><span class="content-type ${item.type}">${extraLabel || contentTypeLabel}</span>${aiDraftButton}${rowCutButton}${rowPasteButton}</td>`,
       media: `<td class="media-cell"><div class="media-list"><div class="media-slots">${Array.from({ length: mediaCount }, (_, mediaIndex) => mediaSlotHtml(mediaIndex, mediaCount > 1)).join("")}</div>${additionalMediaUploadHtml()}</div></td>`,
-      text: `<td>${textCell}</td>`,
-      textItalian: `<td>${translatedTextCell}</td>`,
+      text: `<td class="customer-text-cell ${item.textCustomerApproved ? "customer-text-approved" : ""}">${textCell}</td>`,
+      textItalian: `<td class="customer-text-cell ${item.textItalianCustomerApproved ? "customer-text-approved" : ""}">${translatedTextCell}</td>`,
       changes: `<td class="change-comments-cell">${renderChangeComments(item, table)}</td>`,
       ...customCells,
       status: `<td class="check-cell status-cell"><div class="publication-control"><label class="check-control status-check"><input class="published-input" type="checkbox" ${item.published ? "checked" : ""}><span class="check-box">✓</span></label><span class="status-label">${item.published ? "Veröffentlicht" : "Geplant"}</span></div>${completedControl}${instagramStatusMarkup}${instagramPlanButton}</td>`
@@ -3257,7 +3269,11 @@ async function translateContributionText(row, button) {
     item.translationEntries = entries;
     item.translationLanguage = language;
     item.textItalian = entries.map(entry => entry.text.trim()).filter(Boolean).join("\n\n");
+    item.textItalianCustomerApproved = false;
     saveState();
+    cell.classList.remove("customer-text-approved");
+    const customerApproval = cell.querySelector('[data-customer-text-approval="textItalian"]');
+    if (customerApproval) customerApproval.checked = false;
     const textarea = cell.querySelector(".translated-content-text");
     textarea.value = item.textItalian;
     cell.querySelector(".character-count").textContent = `${item.textItalian.length} Zeichen`;
@@ -3754,8 +3770,13 @@ function copyPendingMediaOcrText(target, button) {
   }
 
   pushUndoState(`Erkannten Bildtext nach ${fieldLabel} kopiert`);
-  if (isGerman) context.item.text = text;
-  else setManualTranslationText(context.item, text);
+  if (isGerman) {
+    context.item.text = text;
+    context.item.textCustomerApproved = false;
+  } else {
+    setManualTranslationText(context.item, text);
+    context.item.textItalianCustomerApproved = false;
+  }
   saveState();
 
   const targetTextarea = context.row.querySelector(isGerman ? ".content-text" : ".translated-content-text");
@@ -3766,6 +3787,10 @@ function copyPendingMediaOcrText(target, button) {
     if (characterCount) characterCount.textContent = `${text.length} Zeichen`;
     if (!isGerman) targetTextarea.closest("td")?.querySelectorAll("[data-translate-language]").forEach(control => control.classList.remove("active"));
     scheduleProofreading(targetTextarea, true);
+    const targetCell = targetTextarea.closest("td");
+    targetCell?.classList.remove("customer-text-approved");
+    const customerApproval = targetCell?.querySelector(`[data-customer-text-approval="${target}"]`);
+    if (customerApproval) customerApproval.checked = false;
   }
   refreshRowCutControl(context.row);
   context.status.className = "media-ocr-status success";
@@ -4643,11 +4668,26 @@ tableBody.addEventListener("input", event => {
     pushUndoState(description);
     event.target.dataset.undoCaptured = "true";
   }
-  if (event.target.matches(".content-text")) updateItemFromRow(row, { text: event.target.value });
+  if (event.target.matches(".content-text")) {
+    const item = itemDataFromRow(row);
+    if (!item) return;
+    item.text = event.target.value;
+    item.textCustomerApproved = false;
+    const cell = event.target.closest("td");
+    cell?.classList.remove("customer-text-approved");
+    const customerApproval = cell?.querySelector('[data-customer-text-approval="text"]');
+    if (customerApproval) customerApproval.checked = false;
+    saveState();
+  }
   else if (event.target.matches(".translated-content-text")) {
     const item = itemDataFromRow(row);
     if (!item) return;
     setManualTranslationText(item, event.target.value);
+    item.textItalianCustomerApproved = false;
+    const cell = event.target.closest("td");
+    cell?.classList.remove("customer-text-approved");
+    const customerApproval = cell?.querySelector('[data-customer-text-approval="textItalian"]');
+    if (customerApproval) customerApproval.checked = false;
     event.target.closest("td")?.querySelectorAll("[data-translate-language]").forEach(button => button.classList.remove("active"));
     saveState();
   }
@@ -4680,6 +4720,15 @@ tableBody.addEventListener("change", event => {
     pushUndoState("Kundenfreigabe geändert");
     updateItemFromRow(row, { approved: event.target.checked });
     event.target.closest("td").querySelector(".status-label").textContent = event.target.checked ? "Bestätigt" : "Offen";
+  }
+  if (event.target.matches("[data-customer-text-approval]")) {
+    const field = event.target.dataset.customerTextApproval;
+    const item = itemDataFromRow(row);
+    if (!item || !["text", "textItalian"].includes(field)) return;
+    pushUndoState(field === "text" ? "Kundenbestätigung für deutschen Text geändert" : "Kundenbestätigung für ITA-/ENG-Text geändert");
+    item[field === "text" ? "textCustomerApproved" : "textItalianCustomerApproved"] = event.target.checked;
+    event.target.closest("td")?.classList.toggle("customer-text-approved", event.target.checked);
+    saveState();
   }
   if (event.target.matches(".published-input")) {
     pushUndoState("Veröffentlichungsstatus geändert");
