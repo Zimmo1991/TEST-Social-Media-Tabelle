@@ -3347,6 +3347,7 @@ async function translateContributionText(row, button) {
     const textarea = cell.querySelector(".translated-content-text");
     textarea.value = item.textItalian;
     cell.querySelector(".character-count").textContent = `${item.textItalian.length} Zeichen`;
+    scheduleTextOverflowRefresh();
     languageButtons.forEach(control => {
       const controlLanguage = control.dataset.translateLanguage === "IT" ? "it" : "en";
       control.classList.toggle("active", entries.some(entry => entry.language === controlLanguage));
@@ -3983,6 +3984,7 @@ function copyPendingMediaOcrText(target, button) {
     targetCell?.classList.remove("customer-text-approved");
     const customerApproval = targetCell?.querySelector(`[data-customer-text-approval="${target}"]`);
     if (customerApproval) customerApproval.checked = false;
+    scheduleTextOverflowRefresh();
   }
   refreshRowCutControl(context.row);
   context.status.className = "media-ocr-status success";
