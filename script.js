@@ -309,6 +309,7 @@ function repairStoredMediaCounts(savedState) {
           note: String(record.note ?? "").slice(0, 1000),
           ocrText: String(record.ocrText ?? "").slice(0, 10_000)
         } : null) : [];
+        item.needsWork = Boolean(item.needsWork);
         item.textCustomerApproved = Boolean(item.textCustomerApproved);
         item.textItalianCustomerApproved = Boolean(item.textItalianCustomerApproved);
         item.textItalian = String(item.textItalian ?? "");
@@ -919,7 +920,7 @@ function ensureCurrentTable() {
 }
 
 function createContentItem(type) {
-  return { type, approved: false, published: false, completed: false, text: "", textCustomerApproved: false, textItalian: "", textItalianCustomerApproved: false, translationEntries: [], translationLanguage: "", changes: "", changeComments: [], changeMessages: [], mediaCount: 1, weekViewHeight: null };
+  return { type, approved: false, needsWork: false, published: false, completed: false, text: "", textCustomerApproved: false, textItalian: "", textItalianCustomerApproved: false, translationEntries: [], translationLanguage: "", changes: "", changeComments: [], changeMessages: [], mediaCount: 1, weekViewHeight: null };
 }
 
 function isoWeekNumber(date) {
@@ -1045,6 +1046,7 @@ function weekItems(table, weekNumber, year = PLANNING_START_YEAR) {
     const migrated = createContentItem(table.postsPerWeek > 0 ? "post" : "story");
     Object.assign(migrated, {
       approved: Boolean(storedWeek.approved),
+      needsWork: Boolean(storedWeek.needsWork),
       published: Boolean(storedWeek.published),
       text: storedWeek.text ?? "",
       textCustomerApproved: Boolean(storedWeek.textCustomerApproved),
@@ -1087,6 +1089,7 @@ function weekItems(table, weekNumber, year = PLANNING_START_YEAR) {
   ];
   items.forEach(item => {
     item.mediaCount = Math.max(1, Number(item.mediaCount) || 1);
+    item.needsWork = Boolean(item.needsWork);
     item.text = String(item.text ?? "");
     item.textCustomerApproved = Boolean(item.textCustomerApproved);
     item.textItalian = String(item.textItalian ?? "");
@@ -3001,7 +3004,7 @@ function renderWeekRows(table, year, weekNumber) {
 
     const cells = {
       week: weekCell,
-      approval: `<td class="check-cell"><label class="check-control"><input class="approved-input" type="checkbox" ${item.approved ? "checked" : ""}><span class="check-box">✓</span></label><span class="status-label">${item.approved ? "Bestätigt" : "Offen"}</span><span class="content-type ${item.type}">${extraLabel || contentTypeLabel}</span>${aiDraftButton}${rowCutButton}${rowPasteButton}</td>`,
+      approval: `<td class="check-cell"><label class="check-control"><input class="approved-input" type="checkbox" ${item.approved ? "checked" : ""}><span class="check-box">✓</span></label><span class="status-label">${item.approved ? "Bestätigt" : "Offen"}</span><label class="needs-work-control"><span>Noch zu Bearbeiten</span><input class="needs-work-input" type="checkbox" ${item.needsWork ? "checked" : ""} aria-label="Zeile als noch zu bearbeiten markieren"><span class="needs-work-box" aria-hidden="true">✓</span></label><span class="content-type ${item.type}">${extraLabel || contentTypeLabel}</span>${aiDraftButton}${rowCutButton}${rowPasteButton}</td>`,
       media: `<td class="media-cell"><div class="media-list"><div class="media-slots">${Array.from({ length: mediaCount }, (_, mediaIndex) => mediaSlotHtml(mediaIndex, mediaCount > 1)).join("")}</div>${additionalMediaUploadHtml()}</div></td>`,
       text: `<td class="customer-text-cell ${item.textCustomerApproved ? "customer-text-approved" : ""}">${textCell}</td>`,
       textItalian: `<td class="customer-text-cell ${item.textItalianCustomerApproved ? "customer-text-approved" : ""}">${translatedTextCell}</td>`,
@@ -3011,7 +3014,7 @@ function renderWeekRows(table, year, weekNumber) {
     };
     const orderedCells = tableColumnOrder(table).map(key => cells[key] ?? "").join("");
 
-    return `<tr class="${isStory ? "story-row" : "post-row"} ${item.approved ? "customer-approved-row" : ""} ${itemIndex === items.length - 1 ? "week-end" : ""} ${isCutSource ? "row-cut-source" : ""}" data-year="${year}" data-week="${weekNumber}" data-item-index="${itemIndex}"${customRowHeight ? ` data-year-week-height="custom" style="--year-week-row-height: ${customRowHeight}px"` : ""}>
+    return `<tr class="${isStory ? "story-row" : "post-row"} ${item.approved ? "customer-approved-row" : ""} ${item.needsWork ? "needs-work-row" : ""} ${itemIndex === items.length - 1 ? "week-end" : ""} ${isCutSource ? "row-cut-source" : ""}" data-year="${year}" data-week="${weekNumber}" data-item-index="${itemIndex}"${customRowHeight ? ` data-year-week-height="custom" style="--year-week-row-height: ${customRowHeight}px"` : ""}>
       ${orderedCells}
     </tr>`;
   }).join("");
@@ -4718,9 +4721,26 @@ tableBody.addEventListener("change", event => {
   if (!row) return;
   if (event.target.matches(".approved-input")) {
     pushUndoState("Kundenfreigabe geändert");
-    updateItemFromRow(row, { approved: event.target.checked });
+    updateItemFromRow(row, { approved: event.target.checked, ...(event.target.checked ? { needsWork: false } : {}) });
     row.classList.toggle("customer-approved-row", event.target.checked);
+    if (event.target.checked) {
+      row.classList.remove("needs-work-row");
+      const needsWorkInput = row.querySelector(".needs-work-input");
+      if (needsWorkInput) needsWorkInput.checked = false;
+    }
     event.target.closest("td").querySelector(".status-label").textContent = event.target.checked ? "Bestätigt" : "Offen";
+  }
+  if (event.target.matches(".needs-work-input")) {
+    pushUndoState("Bearbeitungsstatus geändert");
+    updateItemFromRow(row, { needsWork: event.target.checked, ...(event.target.checked ? { approved: false } : {}) });
+    row.classList.toggle("needs-work-row", event.target.checked);
+    if (event.target.checked) {
+      row.classList.remove("customer-approved-row");
+      const approvedInput = row.querySelector(".approved-input");
+      if (approvedInput) approvedInput.checked = false;
+      const approvalLabel = row.querySelector(".approved-input")?.closest("td")?.querySelector(".status-label");
+      if (approvalLabel) approvalLabel.textContent = "Offen";
+    }
   }
   if (event.target.matches("[data-customer-text-approval]")) {
     const field = event.target.dataset.customerTextApproval;
