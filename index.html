@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Planyoursocials – Content-Planung</title>
-  <link rel="stylesheet" href="styles.css?v=93">
+  <link rel="stylesheet" href="styles.css?v=94">
 </head>
 <body>
   <main id="auth-screen" class="auth-screen">
@@ -230,8 +230,18 @@
       </div>
       <div id="customer-registration-result" class="invitation-result" hidden><p id="customer-registration-status" role="status"></p><label>Zugangsdaten<textarea id="customer-credentials" readonly aria-label="Zugangsdaten des Kunden"></textarea></label><button id="copy-customer-credentials" class="secondary-button" type="button">Zugangsdaten kopieren</button><p class="dialog-hint">Gib die Zugangsdaten nur über einen sicheren Weg an den Kunden weiter. Das Passwort wird hier nach dem Schließen nicht mehr angezeigt.</p></div>
       <p id="subadmin-error" class="form-error" hidden>Bitte wähle mindestens eine Kundentabelle aus.</p>
-      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Schließen</button><button id="subadmin-save-button" class="primary-button" type="submit" hidden>Änderungen speichern</button></div>
+      <div class="dialog-actions"><button id="delete-subadmin-button" class="danger-text-button dialog-action-left" type="button" hidden>Zugang entfernen</button><button class="secondary-button" type="button" data-close-dialog>Schließen</button><button id="subadmin-save-button" class="primary-button" type="submit" hidden>Änderungen speichern</button></div>
     </form>
+  </dialog>
+
+  <dialog id="delete-subadmin-dialog">
+    <div class="delete-column-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Sicherheitsabfrage</p><h2>Zugang wirklich entfernen?</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p id="delete-subadmin-message" class="dialog-hint"></p>
+      <p class="delete-warning"><strong>Dieser Schritt kann nicht rückgängig gemacht werden.</strong> Das Konto wird abgemeldet und kann sich danach nicht mehr anmelden. Die Kundentabellen und ihre Inhalte bleiben erhalten.</p>
+      <p id="delete-subadmin-error" class="form-error" hidden></p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Abbrechen</button><button id="confirm-delete-subadmin" class="danger-button" type="button">Zugang endgültig entfernen</button></div>
+    </div>
   </dialog>
 
   <dialog id="media-viewer" class="media-viewer">
@@ -538,6 +548,6 @@
     </div>
   </template>
 
-  <script src="script.js?v=102"></script>
+  <script src="script.js?v=103"></script>
 </body>
 </html>

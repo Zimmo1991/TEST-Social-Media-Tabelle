@@ -395,6 +395,7 @@ dialog textarea:focus { border-color: #6757ed; box-shadow: 0 0 0 3px #6757ed17; 
 .form-error { margin: -7px 0 0; color: #b43d52; font-size: .72rem; font-weight: 700; }
 .dialog-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 4px; }
+.dialog-actions .dialog-action-left { margin-right: auto; }
 .table-delete-button { margin-right: auto; }
 .dialog-hint { margin: -2px 0 0; border-radius: 8px; padding: 10px; color: #6e788a; background: #f6f7fa; font-size: .7rem; line-height: 1.5; }
 .hidden-weeks-dialog-content { display: grid; gap: 16px; padding: 24px; }

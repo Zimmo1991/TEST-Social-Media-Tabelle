@@ -290,6 +290,7 @@ test("plant und veröffentlicht einen freigegebenen Auftrag im Testmodus", async
       })
     });
     assert.equal(subadminResponse.status, 201);
+    const createdSubadmin = (await subadminResponse.json()).user;
 
     const subadminLogin = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
       method: "POST",
@@ -301,6 +302,8 @@ test("plant und veröffentlicht einen freigegebenen Auftrag im Testmodus", async
     const subadminCookie = subadminLogin.headers.get("set-cookie").split(";", 1)[0];
     const forbiddenUsers = await fetch(`http://127.0.0.1:${port}/api/users`, { headers: { Cookie: subadminCookie } });
     assert.equal(forbiddenUsers.status, 403);
+    const forbiddenUserDeletion = await fetch(`http://127.0.0.1:${port}/api/users/${createdSubadmin.id}`, { method: "DELETE", headers: { Cookie: subadminCookie } });
+    assert.equal(forbiddenUserDeletion.status, 403);
 
     const invalidDirectCustomer = await authenticatedFetch("/api/users", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -455,6 +458,17 @@ test("plant und veröffentlicht einen freigegebenen Auftrag im Testmodus", async
     assert.match(subadminLogout.headers.get("set-cookie"), /Max-Age=0/);
     const statusAfterLogout = await (await fetch(`http://127.0.0.1:${port}/api/auth/status`, { headers: { Cookie: subadminCookie } })).json();
     assert.equal(statusAfterLogout.authenticated, false);
+
+    const deleteSubadminResponse = await authenticatedFetch(`/api/users/${createdSubadmin.id}`, { method: "DELETE" });
+    assert.equal(deleteSubadminResponse.status, 200);
+    const usersAfterSubadminDeletion = await (await authenticatedFetch("/api/users")).json();
+    assert.equal(usersAfterSubadminDeletion.users.some(user => user.email === "team@example.com"), false);
+    const deletedSubadminLogin = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "team@example.com", password: "NochEinSicheres-Testpasswort-2026" })
+    });
+    assert.equal(deletedSubadminLogin.status, 401);
 
     const customerImageDirectory = join(temporaryDirectory, "customer-images");
     const blockedSubdirectory = join(customerImageDirectory, "unterordner");

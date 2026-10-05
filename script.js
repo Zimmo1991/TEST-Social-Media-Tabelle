@@ -103,6 +103,11 @@ const subadminEmail = document.querySelector("#subadmin-email");
 const subadminPassword = document.querySelector("#subadmin-password");
 const subadminPasswordLabel = document.querySelector("#subadmin-password-label");
 const subadminPasswordHint = document.querySelector("#subadmin-password-hint");
+const deleteSubadminButton = document.querySelector("#delete-subadmin-button");
+const deleteSubadminDialog = document.querySelector("#delete-subadmin-dialog");
+const deleteSubadminMessage = document.querySelector("#delete-subadmin-message");
+const deleteSubadminError = document.querySelector("#delete-subadmin-error");
+const confirmDeleteSubadminButton = document.querySelector("#confirm-delete-subadmin");
 const mediaViewer = document.querySelector("#media-viewer");
 const mediaViewerContent = document.querySelector("#media-viewer-content");
 const mediaViewerCounter = document.querySelector("#media-viewer-counter");
@@ -245,6 +250,7 @@ const rowCutBanner = document.querySelector("#row-cut-banner");
 
 let pendingDeleteColumnKey = null;
 let pendingDeleteTableId = null;
+let pendingDeleteSubadminId = null;
 let pendingOriginalDeletion = null;
 let viewerMediaItems = [];
 let viewerMediaIndex = 0;
@@ -2847,6 +2853,8 @@ function openSubadminDialog(user = null) {
     : "Wähle unten einen der beiden Wege. Der Link ist 7 Tage gültig; bei direkter Kundenanlage vergibst du das Passwort selbst.";
   document.querySelector("#subadmin-save-button").hidden = !user;
   document.querySelector("#subadmin-save-button").textContent = customer ? "Kundenzugriff speichern" : "Änderungen speichern";
+  deleteSubadminButton.hidden = !user;
+  deleteSubadminButton.textContent = customer ? "Kundenkonto entfernen" : "Unteradmin entfernen";
   renderSubadminTableOptions(user?.tableIds ?? []);
   subadminError.textContent = customer ? "Bitte wähle genau eine Kundentabelle aus." : "Bitte wähle mindestens eine Kundentabelle aus.";
   subadminError.hidden = true;
@@ -4915,6 +4923,47 @@ subadminForm.addEventListener("submit", async event => {
     saveButton.disabled = false;
     saveButton.textContent = customer ? "Kundenzugriff speichern" : "Änderungen speichern";
   }
+});
+
+deleteSubadminButton.addEventListener("click", () => {
+  const editingId = document.querySelector("#editing-subadmin-id").value;
+  const user = state.users.find(item => item.id === editingId && ["subadmin", "customer"].includes(item.role));
+  if (!user || !isOwner()) return;
+  pendingDeleteSubadminId = user.id;
+  const accountLabel = user.role === "customer" ? "das Kundenkonto" : "den Unteradmin-Zugang";
+  deleteSubadminMessage.textContent = `Möchtest du ${accountLabel} von „${user.name}“ wirklich dauerhaft entfernen?`;
+  deleteSubadminError.hidden = true;
+  confirmDeleteSubadminButton.disabled = false;
+  confirmDeleteSubadminButton.textContent = "Zugang endgültig entfernen";
+  subadminDialog.close("delete");
+  deleteSubadminDialog.returnValue = "";
+  deleteSubadminDialog.showModal();
+});
+
+confirmDeleteSubadminButton.addEventListener("click", async () => {
+  const user = state.users.find(item => item.id === pendingDeleteSubadminId && ["subadmin", "customer"].includes(item.role));
+  if (!user || !isOwner()) return;
+  confirmDeleteSubadminButton.disabled = true;
+  confirmDeleteSubadminButton.textContent = "Zugang wird entfernt …";
+  deleteSubadminError.hidden = true;
+  try {
+    await apiRequest(`/api/users/${encodeURIComponent(user.id)}`, { method: "DELETE" });
+    const usersResult = await apiRequest("/api/users");
+    syncSignedInUser(authenticatedAccount, usersResult.users);
+    pendingDeleteSubadminId = null;
+    deleteSubadminDialog.close("deleted");
+    renderApp();
+  } catch (error) {
+    deleteSubadminError.textContent = error.message;
+    deleteSubadminError.hidden = false;
+    confirmDeleteSubadminButton.disabled = false;
+    confirmDeleteSubadminButton.textContent = "Zugang endgültig entfernen";
+  }
+});
+
+deleteSubadminDialog.addEventListener("close", () => {
+  if (deleteSubadminDialog.returnValue !== "deleted") pendingDeleteSubadminId = null;
+  deleteSubadminError.hidden = true;
 });
 
 document.querySelector("#copy-invitation-link").addEventListener("click", async () => {

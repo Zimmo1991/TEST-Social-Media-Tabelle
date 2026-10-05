@@ -1164,6 +1164,14 @@ async function handleApi(request, response, url) {
     return sendJson(response, 201, { user: publicUser(database.prepare("SELECT * FROM users WHERE id = ?").get(id)) });
   }
   const userRoute = pathname.match(/^\/api\/users\/([^/]+)$/);
+  if (userRoute && request.method === "DELETE") {
+    if (!requireMainAdmin(request)) return sendJson(response, 403, { error: "Nur der Hauptadmin darf Benutzerzugänge entfernen." });
+    const id = decodeURIComponent(userRoute[1]);
+    const existing = database.prepare("SELECT * FROM users WHERE id = ? AND role IN ('subadmin', 'customer') AND active = 1").get(id);
+    if (!existing) return sendJson(response, 404, { error: "Unteradmin- oder Kundenkonto nicht gefunden." });
+    database.prepare("DELETE FROM users WHERE id = ? AND role IN ('subadmin', 'customer')").run(id);
+    return sendJson(response, 200, { ok: true });
+  }
   if (userRoute && request.method === "PATCH") {
     if (!requireMainAdmin(request)) return sendJson(response, 403, { error: "Nur der Hauptadmin darf Benutzerzugriffe bearbeiten." });
     const id = decodeURIComponent(userRoute[1]);
