@@ -666,7 +666,12 @@ dialog textarea:focus { border-color: #6757ed; box-shadow: 0 0 0 3px #6757ed17; 
 .media-viewer .dialog-close { color: #fff; }
 .media-viewer-stage { position: relative; }
 .media-viewer-content { display: grid; min-height: 400px; max-height: calc(100vh - 150px); place-items: center; overflow: auto; padding: 18px; }
+.media-viewer-item { display: grid; width: fit-content; max-width: 100%; gap: 12px; }
 .media-viewer-content img, .media-viewer-content video { display: block; max-width: 100%; max-height: calc(100vh - 190px); object-fit: contain; }
+.media-viewer-item.has-note img, .media-viewer-item.has-note video { max-height: calc(100vh - 300px); }
+.media-viewer-note { display: grid; gap: 5px; border: 1px solid #bfeee7; border-left: 5px solid #18b6a2; border-radius: 10px; padding: 12px 15px; color: #202b3f; background: #f7fffd; box-shadow: 0 6px 18px #0003; overflow-wrap: anywhere; }
+.media-viewer-note strong { color: #087d70; font-size: .7rem; letter-spacing: .055em; text-transform: uppercase; }
+.media-viewer-note p { margin: 0; font-size: .92rem; font-weight: 650; line-height: 1.55; white-space: pre-wrap; }
 .media-viewer-navigation { position: absolute; z-index: 2; top: 50%; display: grid; width: 46px; height: 58px; transform: translateY(-50%); place-items: center; border: 1px solid #ffffff38; border-radius: 12px; padding: 0; color: #fff; background: #111827bf; box-shadow: 0 8px 24px #0005; font-size: 2rem; line-height: 1; }
 .media-viewer-navigation:hover:not(:disabled) { border-color: #ffffff78; background: #6757ed; }
 .media-viewer-navigation:disabled { opacity: .28; cursor: default; }

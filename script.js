@@ -4009,7 +4009,26 @@ function renderMediaViewerItem() {
     enlargedMedia.controls = true;
     enlargedMedia.currentTime = media.currentTime;
   }
-  mediaViewerContent.replaceChildren(enlargedMedia);
+  const slot = media.closest(".media-slot");
+  const row = slot?.closest("tr[data-week]");
+  const item = row ? itemDataFromRow(row) : null;
+  const record = item && slot ? itemMedia(item)[Number(slot.dataset.mediaIndex)] : null;
+  const note = String(record?.note ?? "").trim();
+  const viewerItem = document.createElement("div");
+  viewerItem.className = `media-viewer-item${note ? " has-note" : ""}`;
+  viewerItem.append(enlargedMedia);
+  if (note) {
+    const noteBox = document.createElement("div");
+    noteBox.className = "media-viewer-note";
+    noteBox.setAttribute("role", "note");
+    const noteHeading = document.createElement("strong");
+    noteHeading.textContent = "Bemerkung zum Medium";
+    const noteText = document.createElement("p");
+    noteText.textContent = note;
+    noteBox.append(noteHeading, noteText);
+    viewerItem.append(noteBox);
+  }
+  mediaViewerContent.replaceChildren(viewerItem);
   const hasMultipleMedia = viewerMediaItems.length > 1;
   mediaViewerCounter.textContent = `${viewerMediaIndex + 1} / ${viewerMediaItems.length}`;
   mediaViewerPrevious.hidden = !hasMultipleMedia;
