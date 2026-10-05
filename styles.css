@@ -310,6 +310,7 @@ body.is-resizing-rows * { cursor: row-resize !important; }
 .media-note-editor-actions .media-note-delete { margin-right: auto; padding: 6px 0; }
 .media-ocr-editor { position: absolute; z-index: 41; top: calc(100% + 7px); left: 0; display: grid; width: min(440px, calc(100vw - 36px)); gap: 8px; border: 1px solid #9edee3; border-radius: 12px; padding: 11px; color: #202b3f; background: #fff; box-shadow: 0 16px 38px #17203335; }
 .media-slot:last-child .media-ocr-editor { right: 0; left: auto; }
+.media-slot.portrait-media .media-ocr-editor { right: auto; left: 0; }
 .media-ocr-editor-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .media-ocr-editor-header strong { color: #087c86; font-size: .74rem; }
 .media-ocr-editor-close { display: grid; width: 24px; height: 24px; flex: 0 0 24px; place-items: center; border: 0; border-radius: 7px; padding: 0; color: #7c8594; background: #f3f4f7; font-size: 1rem; line-height: 1; }
