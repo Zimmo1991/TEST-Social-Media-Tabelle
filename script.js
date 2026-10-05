@@ -233,6 +233,7 @@ const aiAgentRuntimeStatus = document.querySelector("#ai-agent-runtime-status");
 const aiAgentImageFolder = document.querySelector("#ai-agent-image-folder");
 const selectAiAgentFolderButton = document.querySelector("#select-ai-agent-folder");
 const aiAgentWebsites = document.querySelector("#ai-agent-websites");
+const addAiAgentWebsiteButton = document.querySelector("#add-ai-agent-website");
 const aiAgentPdfs = document.querySelector("#ai-agent-pdfs");
 const aiAgentTone = document.querySelector("#ai-agent-tone");
 const aiAgentForbiddenTerms = document.querySelector("#ai-agent-forbidden-terms");
@@ -1992,6 +1993,51 @@ function listFromTextarea(value) {
   return [...new Set(String(value || "").split(/\r?\n/).map(entry => entry.trim()).filter(Boolean))];
 }
 
+function aiAgentWebsiteValues() {
+  return [...new Set([...aiAgentWebsites.querySelectorAll(".ai-agent-website-input")]
+    .map(input => input.value.trim())
+    .filter(Boolean))];
+}
+
+function refreshAiAgentWebsiteControls() {
+  const rows = [...aiAgentWebsites.querySelectorAll(".ai-agent-website-row")];
+  rows.forEach((row, index) => {
+    const removeButton = row.querySelector(".ai-agent-website-remove");
+    removeButton.disabled = rows.length === 1;
+    removeButton.setAttribute("aria-label", `Website ${index + 1} entfernen`);
+    row.querySelector(".ai-agent-website-input").setAttribute("aria-label", `Website ${index + 1}`);
+  });
+  addAiAgentWebsiteButton.disabled = rows.length >= 12;
+}
+
+function addAiAgentWebsite(value = "", focus = false) {
+  if (aiAgentWebsites.querySelectorAll(".ai-agent-website-row").length >= 12) return;
+  const row = document.createElement("div");
+  row.className = "ai-agent-website-row";
+  const input = document.createElement("input");
+  input.type = "url";
+  input.className = "ai-agent-website-input";
+  input.placeholder = "https://www.beispiel.it";
+  input.autocomplete = "url";
+  input.value = String(value || "");
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "ai-agent-website-remove";
+  removeButton.title = "Website entfernen";
+  removeButton.textContent = "×";
+  row.append(input, removeButton);
+  aiAgentWebsites.append(row);
+  refreshAiAgentWebsiteControls();
+  if (focus) input.focus();
+}
+
+function renderAiAgentWebsites(websites = []) {
+  aiAgentWebsites.replaceChildren();
+  const values = [...new Set((Array.isArray(websites) ? websites : []).map(value => String(value || "").trim()).filter(Boolean))].slice(0, 12);
+  (values.length ? values : [""]).forEach(value => addAiAgentWebsite(value));
+  refreshAiAgentWebsiteControls();
+}
+
 function aiTextFields(table) {
   return tableColumnDefinitions(table).filter(column => {
     if (["text", "textItalian"].includes(column.key)) return true;
@@ -2030,7 +2076,7 @@ async function loadAiAgentConfiguration(table = selectedAiTable()) {
     currentAiConfiguration = configuration;
     aiAgentEnabled.checked = Boolean(configuration.enabled);
     aiAgentImageFolder.value = configuration.imageFolder || "";
-    aiAgentWebsites.value = (configuration.allowedWebsites || []).join("\n");
+    renderAiAgentWebsites(configuration.allowedWebsites);
     aiAgentPdfs.value = (configuration.pdfFiles || []).join("\n");
     aiAgentTone.value = configuration.tone || "";
     aiAgentForbiddenTerms.value = (configuration.forbiddenTerms || []).join("\n");
@@ -5704,6 +5750,14 @@ historyButton.addEventListener("click", async () => {
 
 aiAgentButton.addEventListener("click", openAiAgentDialog);
 
+addAiAgentWebsiteButton.addEventListener("click", () => addAiAgentWebsite("", true));
+aiAgentWebsites.addEventListener("click", event => {
+  const removeButton = event.target.closest(".ai-agent-website-remove");
+  if (!removeButton || removeButton.disabled) return;
+  removeButton.closest(".ai-agent-website-row")?.remove();
+  refreshAiAgentWebsiteControls();
+});
+
 selectAiAgentFolderButton.addEventListener("click", async () => {
   if (!isOwner()) return;
   const originalLabel = selectAiAgentFolderButton.textContent;
@@ -5758,7 +5812,7 @@ aiAgentForm.addEventListener("submit", async event => {
         tableName: table.name,
         enabled: aiAgentEnabled.checked,
         imageFolder: aiAgentImageFolder.value.trim(),
-        allowedWebsites: listFromTextarea(aiAgentWebsites.value),
+        allowedWebsites: aiAgentWebsiteValues(),
         pdfFiles: listFromTextarea(aiAgentPdfs.value),
         tone: aiAgentTone.value.trim(),
         forbiddenTerms: listFromTextarea(aiAgentForbiddenTerms.value),

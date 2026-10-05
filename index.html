@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Planyoursocials – Content-Planung</title>
-  <link rel="stylesheet" href="styles.css?v=107">
+  <link rel="stylesheet" href="styles.css?v=108">
 </head>
 <body>
   <main id="auth-screen" class="auth-screen">
@@ -411,7 +411,11 @@
         <label>Deutsches Zielfeld<select id="ai-agent-german-field" required></select></label>
         <label>Italienisches Zielfeld<select id="ai-agent-italian-field" required></select></label>
       </div>
-      <label>Erlaubte Websites <textarea id="ai-agent-websites" rows="3" placeholder="Eine vollständige URL pro Zeile"></textarea></label>
+      <div class="ai-agent-websites-field">
+        <div class="ai-agent-websites-header"><span>Erlaubte Websites</span><button id="add-ai-agent-website" class="secondary-button" type="button">+ Website hinzufügen</button></div>
+        <div id="ai-agent-websites" class="ai-agent-websites-list" aria-label="Erlaubte Websites"></div>
+        <small>Bis zu 12 vollständige Website-Adressen können einzeln hinzugefügt werden.</small>
+      </div>
       <label>Explizit freigegebene PDF-Dateien <textarea id="ai-agent-pdfs" rows="3" placeholder="Ein vollständiger PDF-Dateipfad pro Zeile"></textarea></label>
       <label>Tonalität / Schreibstil <textarea id="ai-agent-tone" rows="3" placeholder="z. B. freundlich, kompetent, kurze klare Sätze"></textarea></label>
       <label>Verbotene Begriffe <textarea id="ai-agent-forbidden-terms" rows="2" placeholder="Ein Begriff pro Zeile"></textarea></label>
@@ -538,6 +542,6 @@
     </div>
   </template>
 
-  <script src="script.js?v=116"></script>
+  <script src="script.js?v=117"></script>
 </body>
 </html>

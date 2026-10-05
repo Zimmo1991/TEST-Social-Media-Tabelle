@@ -463,6 +463,16 @@ dialog textarea:focus { border-color: #6757ed; box-shadow: 0 0 0 3px #6757ed17; 
 .ai-agent-folder-picker { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 8px; margin-top: 5px; }
 .ai-agent-folder-picker input { margin-top: 0; }
 .ai-agent-folder-picker .secondary-button { min-width: 130px; white-space: nowrap; }
+.ai-agent-websites-field { display: grid; gap: 8px; color: #596579; font-size: .76rem; font-weight: 750; }
+.ai-agent-websites-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ai-agent-websites-header .secondary-button { flex: 0 0 auto; padding: 8px 10px; }
+.ai-agent-websites-list { display: grid; gap: 8px; }
+.ai-agent-website-row { display: grid; grid-template-columns: minmax(0, 1fr) 40px; gap: 8px; }
+.ai-agent-website-input:focus { border-color: #6757ed; box-shadow: 0 0 0 3px #6757ed17; }
+.ai-agent-website-remove { display: grid; width: 40px; min-height: 40px; place-items: center; border: 1px solid #f0bdc6; border-radius: 9px; padding: 0; color: #bd4057; background: #fff7f8; font-size: 1.25rem; line-height: 1; }
+.ai-agent-website-remove:hover:not(:disabled) { color: #fff; background: #bd4057; }
+.ai-agent-website-remove:disabled { border-color: #e1e5ec; color: #a7afbb; background: #f5f6f8; cursor: not-allowed; }
+.ai-agent-websites-field > small { color: #838c9b; font-size: .65rem; font-weight: 600; line-height: 1.45; }
 @media (max-width: 620px) { .ai-agent-folder-picker { grid-template-columns: 1fr; } }
 .permission-fieldset { min-width: 0; margin: 0; border: 0; padding: 0; }
 .permission-fieldset legend { margin-bottom: 8px; color: #596579; font-size: .76rem; font-weight: 750; }
