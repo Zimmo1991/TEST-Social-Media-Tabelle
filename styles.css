@@ -197,9 +197,9 @@ body.is-resizing-columns { cursor: col-resize; user-select: none; }
 .row-cut-button:disabled { opacity: .45; cursor: default; }
 .row-paste-button { color: #16734e; border-color: #a9dcc3; background: #ebf9f2; font-size: .6rem; }
 .row-paste-button:hover, .row-paste-button:focus-visible { color: #fff; border-color: #218963; background: #218963; outline: none; }
-.row-action-buttons { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 7px; }
+.check-cell .row-action-buttons { display: inline-flex; width: 100%; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 6px; margin-top: 7px; }
 .row-action-buttons:empty { display: none; }
-.row-action-buttons .ai-row-button, .row-action-buttons .row-cut-button, .row-action-buttons .row-paste-button { margin: 0; }
+.check-cell .row-action-buttons > .ai-row-button, .check-cell .row-action-buttons > .row-cut-button, .check-cell .row-action-buttons > .row-paste-button { flex: 0 0 auto; margin: 0; }
 .row-cut-banner { display: flex; width: calc(100% - 40px); margin: 12px 20px; align-items: center; justify-content: center; gap: 12px; border: 1px solid #c53650; border-radius: 9px; padding: 9px 12px; color: #fff; background: #c53650; font-size: .76rem; font-weight: 800; }
 .row-cut-banner:hover { background: #a92740; }
 .row-cut-banner[hidden] { display: none; }
