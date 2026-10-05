@@ -3157,7 +3157,7 @@ function renderWeekRows(table, year, weekNumber) {
     };
     const orderedCells = tableColumnOrder(table).map(key => cells[key] ?? "").join("");
 
-    return `<tr class="${isStory ? "story-row" : "post-row"} ${item.approved ? "customer-approved-row" : ""} ${item.needsWork ? "needs-work-row" : ""} ${itemIndex === items.length - 1 ? "week-end" : ""} ${isCutSource ? "row-cut-source" : ""}" data-year="${year}" data-week="${weekNumber}" data-item-index="${itemIndex}"${customRowHeight ? ` data-year-week-height="custom" style="--year-week-row-height: ${customRowHeight}px"` : ""}>
+    return `<tr class="${isStory ? "story-row" : "post-row"} ${item.approved ? "customer-approved-row" : ""} ${item.needsWork ? "needs-work-row" : ""} ${item.completed ? "completed-row" : ""} ${itemIndex === items.length - 1 ? "week-end" : ""} ${isCutSource ? "row-cut-source" : ""}" data-year="${year}" data-week="${weekNumber}" data-item-index="${itemIndex}"${customRowHeight ? ` data-year-week-height="custom" style="--year-week-row-height: ${customRowHeight}px"` : ""}>
       ${orderedCells}
     </tr>`;
   }).join("");
@@ -3659,6 +3659,7 @@ async function setItemCompleted(row, checked) {
   }
 
   item.completed = true;
+  row.classList.add("completed-row");
   const checkbox = row.querySelector(".completed-input");
   const label = row.querySelector(".completed-status-label");
   if (checkbox) checkbox.disabled = true;
