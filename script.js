@@ -3565,8 +3565,8 @@ function renderMediaNoteControls(record, zone) {
     const textKind = isVideo ? "Videotext" : "Bildtext";
     ocrButton.type = "button";
     ocrButton.className = `media-ocr-button${hasOcrText ? " has-text" : ""}`;
-    ocrButton.setAttribute("aria-label", hasOcrText ? `Erkannten ${textKind} bearbeiten` : `Text im ${isVideo ? "Video" : "Bild"} erkennen`);
-    ocrButton.title = hasOcrText ? `${textKind} bearbeiten` : `Text im ${isVideo ? "aktuellen Videobild" : "Bild"} erkennen`;
+    ocrButton.setAttribute("aria-label", hasOcrText ? `Erkannten ${textKind} bearbeiten` : `Text ${isVideo ? "in der Videomitte" : "im Bild"} erkennen`);
+    ocrButton.title = hasOcrText ? `${textKind} bearbeiten` : `Text ${isVideo ? "in der Videomitte" : "im Bild"} erkennen`;
     ocrButton.textContent = "OCR";
     slot.append(ocrButton);
   }
@@ -3703,7 +3703,7 @@ function waitForVideoEvent(video, eventName, errorMessage) {
   });
 }
 
-async function ocrBlobFromVideo(sourceBlob, requestedTime = 0) {
+async function ocrBlobFromVideo(sourceBlob) {
   const objectUrl = URL.createObjectURL(sourceBlob);
   const video = document.createElement("video");
   video.muted = true;
@@ -3715,7 +3715,7 @@ async function ocrBlobFromVideo(sourceBlob, requestedTime = 0) {
     if (video.readyState < 2) await waitForVideoEvent(video, "loadeddata", "Das Videobild konnte nicht geladen werden.");
     const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
     const maximumTime = duration ? Math.max(0, duration - 0.05) : 0;
-    const targetTime = Math.min(Math.max(0, Number(requestedTime) || 0), maximumTime);
+    const targetTime = duration ? Math.min(duration / 2, maximumTime) : 0;
     if (targetTime > 0 && Math.abs(video.currentTime - targetTime) > 0.02) {
       const seeked = waitForVideoEvent(video, "seeked", "Das gewünschte Videobild konnte nicht geladen werden.");
       video.currentTime = targetTime;
@@ -3738,7 +3738,7 @@ async function ocrBlobFromVideo(sourceBlob, requestedTime = 0) {
   }
 }
 
-async function ocrBlobFromRecord(record, visibleMedia = null) {
+async function ocrBlobFromRecord(record) {
   const sourceUrl = record.id
     ? (record.serverUrl || `/api/planner-media/${encodeURIComponent(record.id)}`)
     : (record.previewServerUrl || record.previewUrl || record.url);
@@ -3748,8 +3748,7 @@ async function ocrBlobFromRecord(record, visibleMedia = null) {
   const sourceBlob = await response.blob();
   const isVideoSource = sourceBlob.type.startsWith("video/") || (String(record.type ?? "").startsWith("video/") && !sourceBlob.type.startsWith("image/"));
   if (isVideoSource) {
-    const requestedTime = visibleMedia instanceof HTMLVideoElement ? visibleMedia.currentTime : 0;
-    return ocrBlobFromVideo(sourceBlob, requestedTime);
+    return ocrBlobFromVideo(sourceBlob);
   }
   const drawable = await loadImageDrawable(sourceBlob);
   try {
@@ -3778,9 +3777,9 @@ async function recognizePendingMediaText() {
   context.copyButtons.forEach(button => { button.disabled = true; });
   context.status.className = "media-ocr-status loading";
   const isVideo = String(context.record?.type ?? "").startsWith("video/");
-  context.status.textContent = isVideo ? "Text im aktuellen Videobild wird lokal erkannt …" : "Bildtext wird lokal erkannt …";
+  context.status.textContent = isVideo ? "Text in der Videomitte wird lokal erkannt …" : "Bildtext wird lokal erkannt …";
   try {
-    const imageBlob = await ocrBlobFromRecord(context.record, context.mediaElement);
+    const imageBlob = await ocrBlobFromRecord(context.record);
     if (pendingMediaOcr !== context) return;
     const form = new FormData();
     form.append("tableId", currentTable()?.id || "");
@@ -3790,8 +3789,10 @@ async function recognizePendingMediaText() {
     context.textarea.value = String(result.text || "");
     context.status.className = "media-ocr-status success";
     context.status.textContent = result.text
-      ? `Text erkannt · Sicherheit ${Number(result.confidence) || 0} % · jetzt direkt korrigierbar`
-      : `Auf diesem ${isVideo ? "Videobild" : "Bild"} wurde kein lesbarer Text erkannt.`;
+      ? `${isVideo ? "Text aus der Videomitte" : "Text"} erkannt · Sicherheit ${Number(result.confidence) || 0} % · jetzt direkt korrigierbar`
+      : isVideo
+        ? "In der Videomitte wurde kein lesbarer Text erkannt."
+        : "Auf diesem Bild wurde kein lesbarer Text erkannt.";
   } catch (error) {
     if (pendingMediaOcr !== context) return;
     context.status.className = "media-ocr-status error";
@@ -3898,11 +3899,12 @@ function openMediaOcrEditor(button) {
   const savedText = String(record.ocrText ?? "").trim();
   const isVideo = String(record.type ?? "").startsWith("video/");
   const textKind = isVideo ? "Videotext" : "Bildtext";
+  const recognizeTitle = isVideo ? "Text in der Videomitte erkennen" : "Text im Bild erkennen";
   const editor = document.createElement("form");
   editor.className = "media-ocr-editor";
-  editor.setAttribute("aria-label", savedText ? `Erkannten ${textKind} bearbeiten` : `Text im ${isVideo ? "Video" : "Bild"} erkennen`);
+  editor.setAttribute("aria-label", savedText ? `Erkannten ${textKind} bearbeiten` : recognizeTitle);
   editor.innerHTML = `
-    <div class="media-ocr-editor-header"><strong>${savedText ? `${textKind} bearbeiten` : `Text im ${isVideo ? "Video" : "Bild"} erkennen`}</strong><button class="media-ocr-editor-close" type="button" aria-label="OCR-Feld schließen">×</button></div>
+    <div class="media-ocr-editor-header"><strong>${savedText ? `${textKind} bearbeiten` : recognizeTitle}</strong><button class="media-ocr-editor-close" type="button" aria-label="OCR-Feld schließen">×</button></div>
     <span class="media-ocr-editor-file"></span>
     <p class="media-ocr-language">Erkennung: Deutsch · Italienisch · Englisch</p>
     <textarea rows="6" maxlength="10000" spellcheck="true" lang="de" aria-label="Erkannter und korrigierbarer Bildtext" placeholder="Erkannter Bildtext erscheint hier …"></textarea>
@@ -3923,7 +3925,7 @@ function openMediaOcrEditor(button) {
     status.textContent = `Gespeicherter ${textKind} · kann direkt korrigiert werden`;
   }
 
-  pendingMediaOcr = { slot, row, item, index, record, mediaElement: slot.querySelector(".preview img, .preview video"), editor, textarea, status, recognizeButton, saveButton, copyButtons, running: false };
+  pendingMediaOcr = { slot, row, item, index, record, editor, textarea, status, recognizeButton, saveButton, copyButtons, running: false };
   slot.classList.add("is-editing-ocr");
   slot.append(editor);
 
