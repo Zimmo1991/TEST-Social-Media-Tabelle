@@ -76,6 +76,8 @@ const contentTableColumns = document.querySelector("#content-table-columns");
 const contentTableHead = document.querySelector("#content-table-head");
 const tableTitle = document.querySelector("#table-title");
 const tableSubtitle = document.querySelector("#table-subtitle");
+const tableStorageUsage = document.querySelector("#table-storage-usage");
+const tableStorageSize = document.querySelector("#table-storage-size");
 const storiesInput = document.querySelector("#stories-per-week");
 const postsInput = document.querySelector("#posts-per-week");
 const subadminList = document.querySelector("#subadmin-list");
@@ -1538,6 +1540,37 @@ function formatStorageSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function tableMediaStorage(table) {
+  const storedFiles = new Map();
+  const transientFiles = new Set();
+  Object.values(table?.weeks ?? {}).forEach(week => storedWeekItems(week).forEach(item => {
+    itemMedia(item).forEach(record => {
+      if (!record) return;
+      const originalId = String(record.id || record.archivedOriginalId || "");
+      if (originalId) storedFiles.set(`original:${originalId}`, Number(record.size) || 0);
+      else if (record.file && !transientFiles.has(record.file)) {
+        transientFiles.add(record.file);
+        storedFiles.set(`local:${storedFiles.size}`, Number(record.size) || Number(record.file.size) || 0);
+      }
+      if (record.previewId) storedFiles.set(`preview:${record.previewId}`, Number(record.previewSize) || 0);
+    });
+  }));
+  return {
+    bytes: [...storedFiles.values()].reduce((sum, size) => sum + size, 0),
+    fileCount: storedFiles.size
+  };
+}
+
+function renderTableStorageUsage(table = currentTable()) {
+  if (!tableStorageUsage || !tableStorageSize) return;
+  const storage = tableMediaStorage(table);
+  const gigabytes = storage.bytes / (1024 ** 3);
+  tableStorageSize.textContent = `${gigabytes.toLocaleString("de-DE", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} GB`;
+  const fileLabel = storage.fileCount === 1 ? "Datei" : "Dateien";
+  tableStorageUsage.title = `${formatStorageSize(storage.bytes)} in ${storage.fileCount} ${fileLabel} (Originale und Vorschauen jeweils einmal gezählt)`;
+  tableStorageUsage.setAttribute("aria-label", `${table?.name || "Kundentabelle"}: ${tableStorageSize.textContent} in ${storage.fileCount} ${fileLabel}`);
+}
+
 async function renderHistoryDialog() {
   historyList.innerHTML = `<p class="history-empty">Änderungsverlauf wird geladen …</p>`;
   try {
@@ -2823,6 +2856,7 @@ function openSubadminDialog(user = null) {
 function renderWorkspace() {
   const table = currentTable();
   renderAiAgentTopStatus();
+  renderTableStorageUsage(table);
   renderTableColumns(table);
   renderHiddenWeeksControls(table);
   const tableColumnCount = Math.max(1, tableColumnDefinitions(table).length);
@@ -3611,6 +3645,7 @@ function showMedia(file, zone, recordUndo = true) {
   const url = URL.createObjectURL(file);
   const record = { file, type: file.type, name: file.name, size: file.size, url, sourceReference: file.webkitRelativePath || file.name, uploading: true };
   itemMedia(item)[index] = record;
+  renderTableStorageUsage();
   refreshRowCutControl(zone.closest("tr[data-week]"));
   renderMediaRecord(record, zone);
   void uploadPlannerMedia(file, item, index, record);
@@ -3638,6 +3673,7 @@ async function uploadPlannerMedia(file, item, index, localRecord) {
     });
     syncItemPersistentMedia(item);
     refreshRowCutControlsForItem(item);
+    renderTableStorageUsage();
     saveState();
   } catch (error) {
     if (itemMedia(item)[index] === localRecord) {
@@ -3682,6 +3718,7 @@ function clearMedia(zone, deleteRemote = true) {
   slot?.querySelectorAll(".media-note-button, .media-note-tooltip").forEach(element => element.remove());
   const slotCount = slot?.closest("tr[data-week]")?.querySelectorAll(".media-slot").length ?? 1;
   if (slot) slot.querySelector(".remove-media").hidden = slotCount <= 1;
+  renderTableStorageUsage();
 }
 
 function refreshMediaSlots(row, item) {

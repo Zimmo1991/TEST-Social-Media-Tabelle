@@ -94,6 +94,10 @@ body.is-history-preview .workspace > :not(.history-preview-banner) { pointer-eve
 h1 { margin: 0; font-size: clamp(2rem, 3vw, 2.6rem); letter-spacing: -.035em; line-height: 1.1; }
 .subtitle { margin: 9px 0 0; color: #778195; font-size: .9rem; }
 .topbar-actions { display: flex; align-items: center; gap: 12px; }
+.table-settings-stack { display: grid; min-width: 142px; gap: 5px; }
+.table-settings-stack .secondary-button { width: 100%; }
+.table-storage-usage { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #dfe4ec; border-radius: 8px; padding: 5px 8px; color: #758093; background: #fff; box-shadow: 0 2px 8px #2532520a; font-size: .58rem; font-weight: 750; line-height: 1.1; }
+.table-storage-usage strong { color: #4d40c8; font-size: .68rem; white-space: nowrap; }
 .view-controls { display: flex; align-items: center; gap: 8px; }
 .view-switch { display: inline-flex; border: 1px solid #dce1e8; border-radius: 9px; padding: 3px; background: #fff; }
 .view-switch button { border: 0; border-radius: 6px; padding: 6px 10px; color: #758093; background: transparent; font-size: .72rem; font-weight: 750; }
