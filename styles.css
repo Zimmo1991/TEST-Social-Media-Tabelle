@@ -353,6 +353,9 @@ body.is-resizing-rows * { cursor: row-resize !important; }
 .proofreading-warning[hidden] { display: none; }
 .change-comments-cell { padding: 9px !important; }
 .change-chat { position: relative; display: grid; min-height: 155px; gap: 8px; grid-template-rows: minmax(62px, auto) auto; padding-top: 20px; }
+.content-card.week-view .change-comments-cell { position: relative; }
+.content-card.week-view .change-comments-cell > .change-chat { position: absolute; inset: 9px; min-height: 0; grid-template-rows: minmax(0, 1fr) auto; }
+.content-card.week-view .change-message-list, .content-card.week-view .change-chat.is-expanded .change-message-list { min-height: 0; max-height: none; }
 .change-chat-toolbar { position: absolute; z-index: 2; top: -2px; left: 0; display: flex; align-items: center; gap: 5px; }
 .change-chat-expand-button, .change-chat-clear-button { display: grid; width: 20px; height: 20px; place-items: center; border: 1px solid #d9dee7; border-radius: 6px; padding: 0; color: #687387; background: #fff; font-size: .9rem; font-weight: 900; line-height: 1; transition: .15s ease; cursor: pointer; }
 .change-chat-expand-button:hover, .change-chat-expand-button:focus-visible { border-color: #6757ed; color: #fff; background: #6757ed; outline: none; }
