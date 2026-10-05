@@ -113,12 +113,6 @@ const mediaViewerContent = document.querySelector("#media-viewer-content");
 const mediaViewerCounter = document.querySelector("#media-viewer-counter");
 const mediaViewerPrevious = document.querySelector("#media-viewer-previous");
 const mediaViewerNext = document.querySelector("#media-viewer-next");
-const mediaNoteDialog = document.querySelector("#media-note-dialog");
-const mediaNoteForm = document.querySelector("#media-note-form");
-const mediaNoteTitle = document.querySelector("#media-note-title");
-const mediaNoteFileName = document.querySelector("#media-note-file-name");
-const mediaNoteText = document.querySelector("#media-note-text");
-const removeMediaNoteButton = document.querySelector("#remove-media-note");
 const contentCard = document.querySelector(".content-card");
 const workspace = document.querySelector(".workspace");
 const tableScroll = document.querySelector(".table-scroll");
@@ -3529,7 +3523,9 @@ async function setItemCompleted(row, checked) {
 function renderMediaNoteControls(record, zone) {
   const slot = zone.closest(".media-slot");
   if (!slot) return;
-  slot.querySelectorAll(".media-note-button, .media-note-tooltip").forEach(element => element.remove());
+  slot.querySelectorAll(".media-note-button, .media-note-tooltip, .media-note-editor").forEach(element => element.remove());
+  slot.classList.remove("is-editing-note");
+  if (pendingMediaNote?.slot === slot) pendingMediaNote = null;
   const note = String(record?.note ?? "").trim();
   if (!historyPreview && !rolePreview) {
     const button = document.createElement("button");
@@ -3553,20 +3549,96 @@ function renderMediaNoteControls(record, zone) {
   }
 }
 
-function openMediaNoteDialog(button) {
+function closeMediaNoteEditor() {
+  if (!pendingMediaNote) return;
+  const { slot, editor } = pendingMediaNote;
+  editor?.remove();
+  slot?.classList.remove("is-editing-note");
+  pendingMediaNote = null;
+}
+
+function openMediaNoteEditor(button) {
   const slot = button.closest(".media-slot");
   const row = slot?.closest("tr[data-week]");
   const item = row ? itemDataFromRow(row) : null;
   const index = Number(slot?.dataset.mediaIndex);
   const record = item && Number.isInteger(index) ? itemMedia(item)[index] : null;
   if (!slot || !item || !record) return;
-  pendingMediaNote = { slot, item, index, record };
-  mediaNoteTitle.textContent = String(record.note ?? "").trim() ? "Bemerkung bearbeiten" : "Bemerkung hinzufügen";
-  mediaNoteFileName.textContent = record.name || "Medium";
-  mediaNoteText.value = String(record.note ?? "");
-  removeMediaNoteButton.hidden = !mediaNoteText.value.trim();
-  mediaNoteDialog.showModal();
-  mediaNoteText.focus();
+  if (pendingMediaNote?.slot === slot) {
+    closeMediaNoteEditor();
+    return;
+  }
+  closeMediaNoteEditor();
+
+  const savedNote = String(record.note ?? "").trim();
+  const editor = document.createElement("form");
+  editor.className = "media-note-editor";
+  editor.setAttribute("aria-label", savedNote ? "Bemerkung bearbeiten" : "Bemerkung hinzufügen");
+
+  const header = document.createElement("div");
+  header.className = "media-note-editor-header";
+  const heading = document.createElement("strong");
+  heading.textContent = savedNote ? "Bemerkung bearbeiten" : "Bemerkung hinzufügen";
+  const closeButton = document.createElement("button");
+  closeButton.type = "button";
+  closeButton.className = "media-note-editor-close";
+  closeButton.setAttribute("aria-label", "Bemerkungsfeld schließen");
+  closeButton.textContent = "×";
+  header.append(heading, closeButton);
+
+  const fileName = document.createElement("span");
+  fileName.className = "media-note-editor-file";
+  fileName.textContent = record.name || "Medium";
+
+  const textarea = document.createElement("textarea");
+  textarea.rows = 4;
+  textarea.maxLength = 1000;
+  textarea.placeholder = "Bemerkung zu diesem Medium …";
+  textarea.value = String(record.note ?? "");
+  textarea.setAttribute("aria-label", "Bemerkung zum Medium");
+
+  const actions = document.createElement("div");
+  actions.className = "media-note-editor-actions";
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "danger-text-button media-note-delete";
+  deleteButton.textContent = "Bemerkung löschen";
+  deleteButton.hidden = !savedNote;
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "secondary-button";
+  cancelButton.textContent = "Abbrechen";
+  const saveButton = document.createElement("button");
+  saveButton.type = "submit";
+  saveButton.className = "primary-button";
+  saveButton.textContent = "Speichern";
+  actions.append(deleteButton, cancelButton, saveButton);
+  editor.append(header, fileName, textarea, actions);
+
+  pendingMediaNote = { slot, item, index, record, editor };
+  slot.classList.add("is-editing-note");
+  slot.append(editor);
+
+  editor.addEventListener("click", event => event.stopPropagation());
+  editor.addEventListener("submit", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    savePendingMediaNote(textarea.value);
+    closeMediaNoteEditor();
+  });
+  closeButton.addEventListener("click", closeMediaNoteEditor);
+  cancelButton.addEventListener("click", closeMediaNoteEditor);
+  deleteButton.addEventListener("click", () => {
+    savePendingMediaNote("");
+    closeMediaNoteEditor();
+  });
+  editor.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    closeMediaNoteEditor();
+    button.focus();
+  });
+  textarea.focus();
 }
 
 function savePendingMediaNote(note) {
@@ -3723,7 +3795,8 @@ function clearMedia(zone, deleteRemote = true) {
   zone.querySelector(".drop-placeholder").hidden = false;
   zone.querySelector("input").value = "";
   const slot = zone.closest(".media-slot");
-  slot?.querySelectorAll(".media-note-button, .media-note-tooltip").forEach(element => element.remove());
+  if (pendingMediaNote?.slot === slot) closeMediaNoteEditor();
+  slot?.querySelectorAll(".media-note-button, .media-note-tooltip, .media-note-editor").forEach(element => element.remove());
   const slotCount = slot?.closest("tr[data-week]")?.querySelectorAll(".media-slot").length ?? 1;
   if (slot) slot.querySelector(".remove-media").hidden = slotCount <= 1;
   renderTableStorageUsage();
@@ -4526,7 +4599,7 @@ tableBody.addEventListener("click", event => {
   if (mediaNoteButton) {
     event.preventDefault();
     event.stopPropagation();
-    openMediaNoteDialog(mediaNoteButton);
+    openMediaNoteEditor(mediaNoteButton);
     return;
   }
   const uploadedMedia = event.target.closest(".preview img, .preview video");
@@ -5518,23 +5591,6 @@ logoutButton.addEventListener("click", async () => {
 });
 
 undoButton.addEventListener("click", undoLastChange);
-
-mediaNoteForm.addEventListener("submit", event => {
-  event.preventDefault();
-  savePendingMediaNote(mediaNoteText.value);
-  mediaNoteDialog.close("saved");
-});
-
-removeMediaNoteButton.addEventListener("click", () => {
-  savePendingMediaNote("");
-  mediaNoteDialog.close("removed");
-});
-
-mediaNoteDialog.addEventListener("close", () => {
-  pendingMediaNote = null;
-  mediaNoteText.value = "";
-  mediaNoteFileName.textContent = "";
-});
 
 mediaViewerPrevious.addEventListener("click", () => showAdjacentMedia(-1));
 mediaViewerNext.addEventListener("click", () => showAdjacentMedia(1));
