@@ -3,40 +3,513 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Social-Media-Tabelle</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>Planyoursocials – Content-Planung</title>
+  <link rel="stylesheet" href="styles.css?v=91">
 </head>
 <body>
-  <main>
-    <header>
-      <p class="eyebrow">Content-Planung</p>
-      <h1>Social-Media-Tabelle</h1>
-      <p class="intro">Medien ablegen, Vorschau prüfen und den zugehörigen Beitragstext erfassen.</p>
-    </header>
-    <section class="table" aria-label="Social-Media-Inhalt">
-      <div class="table-head"><span>Bild oder Video</span><span>Beitragstext</span></div>
-      <div class="table-row">
-        <div class="media-cell">
-          <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Bild oder Video auswählen">
-            <input id="file-input" type="file" accept="image/*,video/*" hidden>
-            <div id="placeholder" class="placeholder">
-              <span class="icon" aria-hidden="true">↑</span>
-              <strong>Datei hierher ziehen</strong>
-              <span>oder zum Auswählen klicken</span>
-              <small>Unterstützt Bilder und Videos</small>
-            </div>
-            <div id="preview" class="preview" hidden></div>
-          </div>
-          <button id="remove-button" type="button" hidden>Medium entfernen</button>
-        </div>
-        <div class="text-cell">
-          <label for="post-text">Text für den Social-Media-Beitrag</label>
-          <textarea id="post-text" rows="10" placeholder="Schreibe hier deinen Beitragstext …"></textarea>
-          <small class="counter"><span id="character-count">0</span> Zeichen</small>
-        </div>
+  <main id="auth-screen" class="auth-screen">
+    <section class="auth-card" aria-labelledby="auth-title">
+      <div class="auth-brand"><img class="auth-logo" src="media/planyoursocials-logo.png?v=2" alt="Planyoursocials"><span><strong>Planyoursocials</strong><small>Content Workspace</small></span></div>
+      <div class="auth-heading">
+        <p id="auth-eyebrow" class="eyebrow">Sicherer Zugang</p>
+        <h1 id="auth-title">Bei Planyoursocials anmelden</h1>
+        <p id="auth-description">Melde dich mit deiner E-Mail-Adresse und deinem Passwort an.</p>
       </div>
+      <form id="auth-form" class="auth-form">
+        <label id="auth-name-wrapper" hidden>Vollständiger Name<input id="auth-name" autocomplete="name" placeholder="Vor- und Nachname"></label>
+        <label id="auth-email-wrapper">E-Mail-Adresse<input id="auth-email" type="email" autocomplete="email" required placeholder="name@unternehmen.com"></label>
+        <label id="auth-password-wrapper">Passwort<span class="password-field"><input id="auth-password" type="password" autocomplete="current-password" minlength="10" required placeholder="Mindestens 10 Zeichen"><button class="password-toggle" type="button" data-password-target="auth-password" aria-label="Passwort anzeigen" aria-pressed="false"><span class="eye-icon" aria-hidden="true"></span></button></span></label>
+        <label id="auth-password-confirm-wrapper" hidden>Passwort wiederholen<span class="password-field"><input id="auth-password-confirm" type="password" autocomplete="new-password" minlength="10" placeholder="Passwort erneut eingeben"><button class="password-toggle" type="button" data-password-target="auth-password-confirm" aria-label="Passwort anzeigen" aria-pressed="false"><span class="eye-icon" aria-hidden="true"></span></button></span></label>
+        <button id="forgot-password-button" class="auth-link-button" type="button">Passwort vergessen?</button>
+        <p id="persistent-login-note" class="persistent-login-note">Du bleibst auf diesem Gerät angemeldet, bis du dich über „Abmelden“ ausloggst.</p>
+        <p id="auth-error" class="auth-error" role="alert" hidden></p>
+        <button id="auth-submit" class="primary-button auth-submit" type="submit">Anmelden</button>
+        <button id="back-to-login-button" class="auth-link-button centered" type="button" hidden>Zurück zur Anmeldung</button>
+      </form>
+      <p id="auth-setup-note" class="auth-setup-note" hidden>Der erste Hauptadmin wird nur einmal eingerichtet. Weitere Benutzer legst du danach als Unteradmins an.</p>
     </section>
   </main>
-  <script src="script.js"></script>
+
+  <div id="app-shell" class="app-shell" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="Planyoursocials Startseite">
+        <img class="brand-logo" src="media/planyoursocials-logo.png?v=2" alt="Planyoursocials">
+      </a>
+
+      <div class="sidebar-section">
+        <div class="section-heading">
+          <span>Kundentabellen</span>
+          <button id="new-table-button" class="icon-button admin-only" type="button" aria-label="Neue Kundentabelle">+</button>
+        </div>
+        <nav id="table-navigation" class="table-navigation" aria-label="Kundentabellen"></nav>
+      </div>
+
+      <div class="sidebar-section admin-only">
+        <div class="section-heading"><span>Teamzugriff</span></div>
+        <div id="subadmin-list" class="subadmin-list"></div>
+        <button id="new-subadmin-button" class="secondary-button full-width" type="button">Unteradmin / Kunden erstellen</button>
+      </div>
+
+      <div class="account-card">
+        <span id="account-avatar" class="avatar">MZ</span>
+        <div><strong id="account-name">Martin Zimmerhofer</strong><small id="account-role">Hauptadmin</small></div>
+        <button id="open-role-preview" class="logout-button admin-only" type="button">Ansicht als Unteradmin / Kunde</button>
+        <button id="exit-role-preview" class="logout-button" type="button" hidden>Zur Hauptadmin-Ansicht</button>
+        <button id="logout-button" class="logout-button" type="button">Abmelden</button>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <section id="role-preview-banner" class="role-preview-banner" aria-live="polite" hidden>
+        <span id="role-preview-description"></span>
+        <button id="exit-role-preview-banner" class="secondary-button" type="button">Vorschau beenden</button>
+      </section>
+      <section id="history-preview-banner" class="history-preview-banner" hidden>
+        <div>
+          <strong>Historische Version</strong>
+          <span id="history-preview-description"></span>
+        </div>
+        <div class="history-preview-actions">
+          <button id="exit-history-preview" class="secondary-button" type="button">Zur aktuellen Tabelle</button>
+          <button id="restore-history-version" class="primary-button admin-only" type="button">Diese Version wiederherstellen</button>
+        </div>
+      </section>
+
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Social-Media-Planung</p>
+          <h1 id="table-title">Kundentabelle</h1>
+          <p id="table-subtitle" class="subtitle">Jahresplanung nach Kalenderwochen</p>
+        </div>
+        <div class="topbar-actions">
+          <div class="view-controls">
+            <div class="view-switch" role="group" aria-label="Tabellenansicht">
+              <button type="button" data-view-mode="year">Jahr</button>
+              <button type="button" data-view-mode="week">Woche</button>
+            </div>
+            <button id="previous-week" class="week-step-button" type="button" aria-label="Vorherige Kalenderwoche" title="Vorherige Kalenderwoche" hidden>‹</button>
+            <label id="week-picker-wrapper" class="week-picker" for="week-picker" hidden>
+              <span>KW</span><select id="week-picker" aria-label="Kalenderwoche auswählen"></select>
+            </label>
+            <button id="next-week" class="week-step-button" type="button" aria-label="Nächste Kalenderwoche" title="Nächste Kalenderwoche" hidden>›</button>
+          </div>
+          <span id="save-status" class="save-status"><span></span> Lokal gespeichert</span>
+          <button id="ai-agent-button" class="secondary-button admin-only ai-agent-top-button" type="button"><span class="ai-agent-status-dot" aria-hidden="true"></span>KI-Agent</button>
+          <button id="backend-button" class="secondary-button admin-only" type="button">Backend</button>
+          <button id="instagram-settings-button" class="secondary-button admin-only" type="button">Instagram</button>
+          <button id="history-button" class="secondary-button admin-only" type="button">Änderungsverlauf</button>
+          <button id="table-settings-button" class="secondary-button admin-only" type="button">Tabelle verwalten</button>
+        </div>
+      </header>
+
+      <section class="quota-card" aria-labelledby="quota-title" hidden>
+        <div>
+          <span class="card-icon" aria-hidden="true">▦</span>
+          <div><h2 id="quota-title">Wochenumfang</h2><p>Vorgesehene Inhalte pro Kalenderwoche</p></div>
+        </div>
+        <label>Stories pro Woche<input id="stories-per-week" type="number" min="0" max="30" value="5"></label>
+        <label>Posts pro Woche<input id="posts-per-week" type="number" min="0" max="30" value="3"></label>
+      </section>
+
+      <section class="content-card" aria-labelledby="content-table-title">
+        <div class="content-card-header">
+          <div><h2 id="content-table-title">Content-Jahresplanung</h2><p id="content-table-description">Alle 52 Kalenderwochen auf einen Blick</p></div>
+          <div class="content-header-actions">
+            <button id="undo-button" class="undo-button" type="button" aria-label="Letzte Änderung rückgängig machen" title="Keine Änderung zum Rückgängigmachen" disabled>↶</button>
+            <button id="manage-columns-button" class="secondary-button compact-button admin-only" type="button">+ Spalten</button>
+            <button id="fixed-hashtags-button" class="secondary-button compact-button admin-only" type="button">Hashtags fix</button>
+            <button id="hidden-weeks-button" class="hidden-weeks-button admin-only" type="button"><span aria-hidden="true">◌</span> Ausgeblendet <strong id="hidden-weeks-count">0</strong></button>
+          </div>
+        </div>
+        <button id="row-cut-banner" class="row-cut-banner" type="button" title="Ausschneiden abbrechen" aria-live="polite" hidden>Zeile ausgeschnitten – bitte einfügen oder tauschen <span aria-hidden="true">×</span></button>
+        <div class="table-scroll">
+          <table class="content-table">
+            <colgroup id="content-table-columns">
+              <col data-column="week">
+              <col data-column="approval">
+              <col data-column="media">
+              <col data-column="text">
+              <col data-column="textItalian">
+              <col data-column="changes">
+              <col data-column="status">
+            </colgroup>
+            <thead>
+              <tr id="content-table-head">
+                <th class="week-column" data-column="week">KW</th>
+                <th class="approval-column" data-column="approval">OK lt. Kunde</th>
+                <th class="media-column" data-column="media">Bild oder Video</th>
+                <th class="text-column" data-column="text">Beitragstext deutsch</th>
+                <th class="translated-text-column" data-column="textItalian">Beitragstext ita / eng</th>
+                <th class="changes-column" data-column="changes">Änderungswünsche</th>
+                <th class="status-column" data-column="status">Geplant / Veröffentlicht</th>
+              </tr>
+            </thead>
+            <tbody id="content-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="table-dialog">
+    <form id="table-form" method="dialog">
+      <div class="dialog-header"><div><p class="eyebrow">Kundenverwaltung</p><h2 id="table-dialog-title">Neue Kundentabelle</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <input id="editing-table-id" type="hidden">
+      <label>Kundenname<input id="client-name" name="client-name" required placeholder="z. B. Café Morgenrot"></label>
+      <div class="dialog-grid">
+        <label>Stories pro Woche<input id="dialog-stories" type="number" min="0" max="30" value="5" required></label>
+        <label>Posts pro Woche<input id="dialog-posts" type="number" min="0" max="30" value="3" required></label>
+      </div>
+      <div class="dialog-grid">
+        <label>Zusätzliche Stories pro Monat<input id="dialog-monthly-stories" type="number" min="0" max="30" value="0" required></label>
+        <label>Zusätzliche Posts pro Monat<input id="dialog-monthly-posts" type="number" min="0" max="30" value="0" required></label>
+      </div>
+      <p class="dialog-hint">Die 1. Zusatzzeile steht in der letzten Kalenderwoche des Monats, die 2. nach den ersten zwei Monatswochen. Weitere Zusatzzeilen wechseln zwischen diesen beiden Stellen.</p>
+      <p id="monthly-extras-error" class="form-error" hidden>Eine wegfallende Zusatzzeile enthält noch Inhalte. Verschiebe sie zuerst in eine andere Zeile.</p>
+      <label>Tabelle anzeigen ab<select id="dialog-start-week" required></select></label>
+      <p class="dialog-hint">Frühere Kalenderwochen bleiben gespeichert, werden für diese Kundentabelle aber nicht angezeigt.</p>
+      <fieldset class="permission-fieldset">
+        <legend>Sichtbare Jahre</legend>
+        <div id="dialog-visible-years" class="year-visibility-options"></div>
+      </fieldset>
+      <p id="visible-years-error" class="form-error" hidden>Wähle mindestens ein sichtbares Jahr aus.</p>
+      <p class="dialog-hint">Ausgeblendete Jahre und alle darin gespeicherten Inhalte bleiben vollständig erhalten.</p>
+      <div class="dialog-actions"><button id="delete-table-button" class="danger-button table-delete-button" type="button" hidden>Kundentabelle löschen</button><button class="secondary-button" type="button" data-close-dialog>Abbrechen</button><button class="primary-button" type="submit">Speichern</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="role-preview-dialog">
+    <form id="role-preview-form">
+      <div class="dialog-header"><div><p class="eyebrow">Ansicht prüfen</p><h2>Unteradmin / Kunde auswählen</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p class="dialog-hint">Du siehst nur die für dieses Konto freigegebenen Tabellen. Die Vorschau ist schreibgeschützt; dein Hauptadmin-Konto bleibt angemeldet.</p>
+      <label>Ansicht von<select id="role-preview-user" required></select></label>
+      <p id="role-preview-empty" class="dialog-hint" hidden>Es gibt noch kein Unteradmin- oder Kundenkonto. Lege zuerst eines unter „Teamzugriff“ an.</p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Abbrechen</button><button id="start-role-preview" class="primary-button" type="submit">Vorschau öffnen</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="subadmin-dialog">
+    <form id="subadmin-form" method="dialog">
+      <div class="dialog-header"><div><p class="eyebrow">Teamzugriff</p><h2 id="subadmin-dialog-title">Zugang vergeben</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <input id="editing-subadmin-id" type="hidden">
+      <label id="subadmin-name-label">Name<input id="subadmin-name" required placeholder="Vor- und Nachname"></label>
+      <label id="subadmin-email-label">E-Mail-Adresse<input id="subadmin-email" type="email" autocomplete="off" placeholder="name@unternehmen.com"></label>
+      <label id="subadmin-password-label">Temporäres Passwort<input id="subadmin-password" type="password" autocomplete="new-password" minlength="10" placeholder="Mindestens 10 Zeichen"></label>
+      <p id="subadmin-password-hint" class="dialog-hint">Teile dieses Passwort sicher mit dem Unteradmin. Er meldet sich anschließend mit E-Mail-Adresse und Passwort an.</p>
+      <fieldset class="permission-fieldset">
+        <legend>Sichtbare Kundentabellen</legend>
+        <div id="subadmin-tables" class="permission-list"></div>
+      </fieldset>
+      <p id="access-table-hint" class="dialog-hint">Wähle für den Einladungslink die erlaubten Tabellen. Bei einer direkten Kundenregistrierung wähle genau eine Tabelle.</p>
+      <div id="invitation-delivery" class="invitation-steps" aria-label="Zwei Möglichkeiten für den Zugang">
+        <div class="invitation-step"><span class="invitation-step-number">1</span><div><strong>Einladungslink erstellen</strong><small>Die Person legt Name und Passwort selbst fest. Der einmalige Link wird automatisch kopiert.</small><button id="create-invitation-link" class="primary-button" type="button">Link erstellen und kopieren</button></div></div>
+        <div class="invitation-step"><span class="invitation-step-number">2</span><div><strong>Registrierung von Kunden</strong><small>Lege ein Kundenkonto für genau eine Kundentabelle an und gib die Zugangsdaten selbst weiter.</small><label>Kundenname<input id="new-customer-name" autocomplete="off" required placeholder="Vor- und Nachname"></label><label>E-Mail-Adresse<input id="new-customer-email" type="email" autocomplete="off" required placeholder="name@unternehmen.com"></label><label>Passwort<input id="new-customer-password" type="password" autocomplete="new-password" required minlength="10" placeholder="Mindestens 10 Zeichen"></label><button id="register-customer" class="primary-button" type="button">Kundenkonto registrieren</button></div></div>
+      </div>
+      <div id="invitation-result" class="invitation-result" hidden>
+        <label>Einmaliger Einladungslink<input id="invitation-link" type="text" readonly aria-label="Einmaliger Einladungslink"></label>
+        <button id="copy-invitation-link" class="secondary-button" type="button">Link kopieren</button>
+        <p id="invitation-copy-status" class="dialog-hint" role="status">Der Link ist 7 Tage gültig. Gib ihn nur an die eingeladene Person weiter.</p>
+      </div>
+      <div id="customer-registration-result" class="invitation-result" hidden><p id="customer-registration-status" role="status"></p><label>Zugangsdaten<textarea id="customer-credentials" readonly aria-label="Zugangsdaten des Kunden"></textarea></label><button id="copy-customer-credentials" class="secondary-button" type="button">Zugangsdaten kopieren</button><p class="dialog-hint">Gib die Zugangsdaten nur über einen sicheren Weg an den Kunden weiter. Das Passwort wird hier nach dem Schließen nicht mehr angezeigt.</p></div>
+      <p id="subadmin-error" class="form-error" hidden>Bitte wähle mindestens eine Kundentabelle aus.</p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Schließen</button><button id="subadmin-save-button" class="primary-button" type="submit" hidden>Änderungen speichern</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="media-viewer" class="media-viewer">
+    <div class="media-viewer-header">
+      <div><strong>Medienvorschau</strong><span id="media-viewer-counter" class="media-viewer-counter"></span></div>
+      <button class="dialog-close" type="button" data-close-dialog aria-label="Vorschau schließen">×</button>
+    </div>
+    <div class="media-viewer-stage">
+      <button id="media-viewer-previous" class="media-viewer-navigation previous" type="button" aria-label="Vorheriges Medium" title="Vorheriges Medium">‹</button>
+      <div id="media-viewer-content" class="media-viewer-content"></div>
+      <button id="media-viewer-next" class="media-viewer-navigation next" type="button" aria-label="Nächstes Medium" title="Nächstes Medium">›</button>
+    </div>
+  </dialog>
+
+  <dialog id="hidden-weeks-dialog">
+    <div class="hidden-weeks-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Tabellenansicht</p><h2>Ausgeblendete Kalenderwochen</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p class="dialog-hint">Die Inhalte bleiben vollständig gespeichert und werden beim Einblenden unverändert wieder angezeigt.</p>
+      <form id="hide-weeks-range-form" class="hide-weeks-range-form">
+        <div><h3>Zeitraum ausblenden</h3><p>Alle Kalenderwochen zwischen den beiden Angaben werden ausgeblendet.</p></div>
+        <div class="hide-weeks-range-fields">
+          <label>Von<select id="hide-weeks-from" required></select></label>
+          <label>Bis<select id="hide-weeks-to" required></select></label>
+          <button class="primary-button" type="submit">Zeitraum ausblenden</button>
+        </div>
+        <p id="hide-weeks-range-error" class="form-error" hidden></p>
+      </form>
+      <h3 class="hidden-weeks-list-title">Bereits ausgeblendet</h3>
+      <div id="hidden-weeks-list" class="hidden-weeks-list"></div>
+      <div class="dialog-actions"><button id="restore-all-weeks" class="secondary-button" type="button">Alle einblenden</button><button class="primary-button" type="button" data-close-dialog>Fertig</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="fixed-hashtags-dialog">
+    <form id="fixed-hashtags-form" method="dialog">
+      <div class="dialog-header"><div><p class="eyebrow">Kundentabelle</p><h2>Hashtags fix</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <label>Fester Text am Beitragsende<textarea id="fixed-hashtags-text" rows="8" placeholder="#deinunternehmen #socialmedia"></textarea></label>
+      <p class="dialog-hint">Dieser Text wird beim Kopieren automatisch nach dem individuellen Beitragstext eingefügt. Die Einstellung gilt nur für die aktuelle Kundentabelle.</p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Abbrechen</button><button class="primary-button" type="submit">Speichern</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="columns-dialog" class="columns-dialog">
+    <div class="columns-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Kundentabelle</p><h2>Spalten verwalten</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p class="dialog-hint">Spaltenänderungen gelten für alle bestehenden Kundentabellen und automatisch auch für jede neue Tabelle.</p>
+      <div id="custom-columns-list" class="custom-columns-list"></div>
+      <form id="custom-column-form" class="custom-column-form" method="dialog">
+        <h3 id="custom-column-form-title">Neue Spalte hinzufügen</h3>
+        <input id="editing-custom-column-id" type="hidden">
+        <label>Spaltentitel<input id="custom-column-title" required placeholder="z. B. Freigabe intern"></label>
+        <label>Inhalt pro Zeile<select id="custom-column-type"><option value="text">Freier Text</option><option value="checkbox">Häkchen</option></select></label>
+        <label id="custom-checkbox-label-wrapper" hidden>Text unter dem Häkchen<input id="custom-checkbox-label" placeholder="z. B. Erledigt"></label>
+        <div class="dialog-actions"><button id="reset-custom-column-form" class="secondary-button" type="button" hidden>Neue Spalte</button><button class="primary-button" type="submit">Spalte speichern</button></div>
+      </form>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Fertig</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="delete-translated-column-dialog">
+    <div class="delete-column-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Spaltenverwaltung</p><h2>Spalte entfernen?</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p id="delete-standard-column-message" class="dialog-hint"></p>
+      <p class="delete-warning">Die bereits eingetragenen Inhalte bleiben gespeichert und werden bei einer späteren Wiederherstellung wieder angezeigt.</p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Abbrechen</button><button id="continue-delete-translated-column" class="danger-button" type="button">Weiter zur zweiten Bestätigung</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="delete-translated-column-final-dialog">
+    <div class="delete-column-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Zweite Bestätigung</p><h2>Entfernen endgültig bestätigen</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p id="delete-standard-column-final-message" class="dialog-hint"></p>
+      <p class="delete-warning"><strong>Bist du wirklich sicher?</strong> Du kannst die Spalte später unter „Spalten“ wiederherstellen.</p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Doch nicht entfernen</button><button id="confirm-delete-translated-column" class="danger-button" type="button">Spalte endgültig entfernen</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="delete-table-dialog">
+    <div class="delete-column-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Kundenverwaltung</p><h2>Kundentabelle löschen?</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p id="delete-table-message" class="dialog-hint"></p>
+      <p class="delete-warning">Die Kundentabelle, ihre Inhalte und die zugehörigen Unteradmin-Freigaben werden entfernt.</p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Abbrechen</button><button id="continue-delete-table" class="danger-button" type="button">Weiter zur zweiten Bestätigung</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="delete-table-final-dialog">
+    <div class="delete-column-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Zweite Bestätigung</p><h2>Löschen endgültig bestätigen</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p id="delete-table-final-message" class="dialog-hint"></p>
+      <p class="delete-warning"><strong>Bist du wirklich sicher?</strong> Dieser Schritt entfernt die gesamte Kundentabelle.</p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Doch nicht löschen</button><button id="confirm-delete-table" class="danger-button" type="button">Kundentabelle endgültig löschen</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="history-dialog" class="history-dialog">
+    <div class="history-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Automatisch gespeichert</p><h2>Änderungsverlauf</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <div class="history-summary">
+        <span><strong id="history-count">0</strong> von maximal 1.000 Änderungen</span>
+        <span id="history-storage-size">0 KB Tabellendaten</span>
+      </div>
+      <p class="dialog-hint">Wähle einen Stand aus, um die damalige Kundentabelle anzusehen. Erst mit „Diese Version wiederherstellen“ wird der aktuelle Stand ersetzt. Bilder und Videos werden nicht vervielfältigt und bleiben beim Wiederherstellen unverändert.</p>
+      <div id="history-list" class="history-list"></div>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Schließen</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="instagram-dialog" class="instagram-dialog">
+    <div class="instagram-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Kundenkonten</p><h2>Instagram pro Kunde</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <label class="instagram-table-picker">Kunde auswählen
+        <select id="instagram-table-select" aria-label="Kunde für Instagram-Verbindung auswählen"></select>
+        <small>Jede Kundentabelle kann mit einer eigenen professionellen Instagram-Seite verbunden werden.</small>
+      </label>
+      <section id="instagram-app-config-section" class="instagram-setup-card" hidden>
+        <div><strong>Instagram-Login einmalig einrichten</strong><small>Hier werden die <em>Instagram App-ID und das Instagram App-Secret</em> aus „Instagram → API-Einrichtung mit Instagram-Login“ benötigt. Die App-ID und der App-Geheimcode aus „App-Einstellungen → Allgemeines“ sind für diesen Anmeldeweg nicht dieselben Zugangsdaten. Das Secret bleibt nur serverseitig in der geschützten .env-Datei.</small></div>
+        <form id="instagram-app-config-form" class="instagram-app-config-form">
+          <label>Instagram App-ID (aus Instagram-Login, nicht Allgemeines)
+            <input id="instagram-app-id" type="text" inputmode="numeric" autocomplete="off" placeholder="z. B. 123456789012345" required>
+          </label>
+          <label>Instagram App-Secret (aus Instagram-Login)
+            <input id="instagram-app-secret" type="password" autocomplete="new-password" placeholder="App-Secret einfügen">
+            <small id="instagram-app-secret-hint">Wird nur auf diesem Computer gespeichert.</small>
+          </label>
+          <div class="instagram-config-actions"><button id="save-instagram-config-button" class="secondary-button" type="submit">Meta-Zugang speichern</button><span id="instagram-config-status" aria-live="polite"></span></div>
+        </form>
+      </section>
+      <p class="instagram-setup-card" id="instagram-oauth-hint">Für die Verbindung muss in Meta unter „Instagram → API-Einrichtung mit Instagram-Login → Business-Login-Einstellungen“ die Rückrufadresse <code id="instagram-redirect-uri"></code> als gültige OAuth-Weiterleitungs-URI eingetragen sein. Die Instagram-Seite muss ein professionelles Konto sein. Eine normale Anmeldung bei instagram.com allein erteilt Planyoursocials noch keinen Veröffentlichungszugriff.</p>
+      <section class="instagram-profile-card">
+        <label>Instagram-Profil dieses Kunden
+          <div class="instagram-profile-input-row"><input id="instagram-profile-url" type="text" autocomplete="off" placeholder="@benutzername oder Instagram-URL"><button id="open-instagram-profile-button" class="secondary-button" type="button">Suchen / öffnen</button></div>
+          <small>Diese Angabe hilft bei der Zuordnung. Die sichere Verbindung erfolgt anschließend über den offiziellen Meta-Login.</small>
+        </label>
+      </section>
+      <div id="instagram-connection-card" class="instagram-connection-card"><p>Verbindung wird geprüft …</p></div>
+      <div class="instagram-dialog-actions">
+        <button id="connect-instagram-button" class="primary-button" type="button">Instagram-Seite verbinden</button>
+        <button id="disconnect-instagram-button" class="danger-text-button" type="button" hidden>Verbindung trennen</button>
+      </div>
+      <div>
+        <h3 class="instagram-publications-title">Letzte Veröffentlichungsaufträge</h3>
+        <div id="instagram-publications-list" class="instagram-publications-list"></div>
+      </div>
+      <p id="instagram-dialog-error" class="form-error" hidden></p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Schließen</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="ai-agent-dialog" class="ai-agent-dialog">
+    <form id="ai-agent-form">
+      <div class="dialog-header"><div><p class="eyebrow">Nur für den Hauptadmin</p><h2>KI-Vorbereitungsagent</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p class="dialog-hint">Der Agent erstellt ausschließlich einen Entwurf in der gewählten offenen Post-Zeile. Er kann keine Instagram-Planung starten und nichts veröffentlichen.</p>
+      <label class="ai-agent-table-picker">Kundentabelle
+        <select id="ai-agent-table-select" required></select>
+      </label>
+      <label class="ai-agent-toggle"><input id="ai-agent-enabled" type="checkbox"><span><strong>KI-Agent für diesen Kunden einschalten</strong><small>Der Zeilen-Button ist nur für den Hauptadmin sichtbar.</small></span></label>
+      <div id="ai-agent-runtime-status" class="ai-agent-runtime-status" aria-live="polite"></div>
+      <label>Exakt freigegebener Bildordner
+        <span class="ai-agent-folder-picker">
+          <input id="ai-agent-image-folder" type="text" autocomplete="off" placeholder="z. B. C:\Kunden\Bergwerk Fitness\Bilder">
+          <button id="select-ai-agent-folder" class="secondary-button" type="button">Ordner auswählen</button>
+        </span>
+        <small>Auch lokal synchronisierte OneDrive- und Google-Drive-Ordner können ausgewählt werden. Es werden nur direkt enthaltene Bilder gelesen; Unterordner bleiben gesperrt.</small>
+      </label>
+      <div class="dialog-grid">
+        <label>Deutsches Zielfeld<select id="ai-agent-german-field" required></select></label>
+        <label>Italienisches Zielfeld<select id="ai-agent-italian-field" required></select></label>
+      </div>
+      <label>Erlaubte Websites <textarea id="ai-agent-websites" rows="3" placeholder="Eine vollständige URL pro Zeile"></textarea></label>
+      <label>Explizit freigegebene PDF-Dateien <textarea id="ai-agent-pdfs" rows="3" placeholder="Ein vollständiger PDF-Dateipfad pro Zeile"></textarea></label>
+      <label>Tonalität / Schreibstil <textarea id="ai-agent-tone" rows="3" placeholder="z. B. freundlich, kompetent, kurze klare Sätze"></textarea></label>
+      <label>Verbotene Begriffe <textarea id="ai-agent-forbidden-terms" rows="2" placeholder="Ein Begriff pro Zeile"></textarea></label>
+      <label>Zusätzliche Kundenhinweise <textarea id="ai-agent-notes" rows="3" placeholder="Optionale Hinweise für die Entwurfserstellung"></textarea></label>
+      <p id="ai-agent-error" class="form-error" hidden></p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Abbrechen</button><button id="save-ai-agent-config" class="primary-button" type="submit">Konfiguration speichern</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="backend-dialog" class="backend-dialog">
+    <div class="backend-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Nur für den Hauptadmin</p><h2>Backend-Übersicht</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <div id="backend-status-card" class="backend-status-card"><span class="backend-status-dot"></span><div><strong>Backend wird geprüft …</strong><small>Verbindung zur lokalen Datenverwaltung</small></div></div>
+      <div class="backend-metrics">
+        <article><span>Kundentabellen</span><strong id="backend-table-count">0</strong></article>
+        <article><span>Instagram-Verbindungen</span><strong id="backend-connection-count">0</strong></article>
+        <article><span>Veröffentlichungen</span><strong id="backend-publication-count">0</strong></article>
+        <article><span>Offene / Fehler</span><strong id="backend-open-count">0</strong></article>
+      </div>
+      <section class="backend-section">
+        <div class="backend-section-heading"><h3>System</h3><span id="backend-last-updated"></span></div>
+        <div id="backend-system-details" class="backend-system-details"></div>
+      </section>
+      <section class="backend-section">
+        <div class="backend-section-heading"><h3>Instagram-Verbindungen</h3></div>
+        <div id="backend-connections-list" class="backend-list"></div>
+      </section>
+      <section class="backend-section">
+        <div class="backend-section-heading"><h3>Letzte Veröffentlichungsaufträge</h3></div>
+        <div id="backend-publications-list" class="backend-list"></div>
+      </section>
+      <section class="backend-section backend-media-section">
+        <button id="toggle-backend-media" class="backend-media-toggle" type="button" aria-expanded="false" aria-controls="backend-media-panel">
+          <span><strong>Alle Fotos, Videos und Stories</strong><small id="backend-media-summary">Medienübersicht öffnen</small></span><span aria-hidden="true">⌄</span>
+        </button>
+        <div id="backend-media-panel" class="backend-media-panel" hidden>
+          <div class="backend-media-controls">
+            <button id="open-media-library" class="secondary-button backend-media-expand" type="button">Große Übersicht öffnen</button>
+            <span class="backend-media-sort-hint">Zum Sortieren eine Überschrift anklicken</span>
+            <select id="backend-media-sort" hidden aria-label="Sortierspalte"><option value="name">Name</option><option value="yearWeek">Jahr / KW</option><option value="size">Dateigröße</option><option value="fileState">Dateistand</option><option value="action">Aktion</option></select>
+            <select id="backend-media-direction" hidden aria-label="Sortierreihenfolge"><option value="asc">Aufsteigend</option><option value="desc" selected>Absteigend</option></select>
+          </div>
+          <div class="backend-media-table" role="table" aria-label="Alle hochgeladenen Medien">
+            <div class="backend-media-row backend-media-head" role="row"><span role="columnheader">Typ</span><span role="columnheader"><button type="button" data-media-sort="name">Name<span class="backend-media-sort-arrow" aria-hidden="true"></span></button></span><span role="columnheader"><button type="button" data-media-sort="yearWeek">Jahr / KW<span class="backend-media-sort-arrow" aria-hidden="true"></span></button></span><span role="columnheader"><button type="button" data-media-sort="size">Größe Original / Vorschau<span class="backend-media-sort-arrow" aria-hidden="true"></span></button></span><span role="columnheader">Original / Vorschau vorhanden</span><span role="columnheader"><button type="button" data-media-sort="fileState">Dateistand<span class="backend-media-sort-arrow" aria-hidden="true"></span></button></span><span role="columnheader"><button type="button" data-media-sort="action">Aktion<span class="backend-media-sort-arrow" aria-hidden="true"></span></button></span></div>
+            <div id="backend-media-list" class="backend-media-list"></div>
+          </div>
+        </div>
+      </section>
+      <p id="backend-dialog-error" class="form-error" hidden></p>
+      <div class="dialog-actions"><button id="refresh-backend-button" class="secondary-button" type="button">Neu laden</button><button class="primary-button" type="button" data-close-dialog>Schließen</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="media-library-dialog" class="media-library-dialog">
+    <div class="media-library-content">
+      <div class="dialog-header">
+        <div><p class="eyebrow">Nur für den Hauptadmin</p><h2>Alle Fotos, Videos und Stories</h2><p id="media-library-summary" class="media-library-summary">0 Medien gespeichert</p></div>
+        <button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button>
+      </div>
+      <div class="backend-media-controls media-library-controls">
+        <span class="backend-media-sort-hint">Zum Sortieren eine Überschrift anklicken</span>
+        <select id="media-library-sort" hidden aria-label="Sortierspalte"><option value="name">Name</option><option value="yearWeek">Jahr / KW</option><option value="size">Dateigröße</option><option value="fileState">Dateistand</option><option value="action">Aktion</option></select>
+        <select id="media-library-direction" hidden aria-label="Sortierreihenfolge"><option value="asc">Aufsteigend</option><option value="desc" selected>Absteigend</option></select>
+      </div>
+      <div class="backend-media-table media-library-table" role="table" aria-label="Große Übersicht aller hochgeladenen Medien">
+        <div class="backend-media-row backend-media-head" role="row"><span role="columnheader">Typ</span><span role="columnheader"><button type="button" data-media-sort="name">Name<span class="backend-media-sort-arrow" aria-hidden="true"></span></button></span><span role="columnheader"><button type="button" data-media-sort="yearWeek">Jahr / KW<span class="backend-media-sort-arrow" aria-hidden="true"></span></button></span><span role="columnheader"><button type="button" data-media-sort="size">Größe Original / Vorschau<span class="backend-media-sort-arrow" aria-hidden="true"></span></button></span><span role="columnheader">Original / Vorschau vorhanden</span><span role="columnheader"><button type="button" data-media-sort="fileState">Dateistand<span class="backend-media-sort-arrow" aria-hidden="true"></span></button></span><span role="columnheader"><button type="button" data-media-sort="action">Aktion<span class="backend-media-sort-arrow" aria-hidden="true"></span></button></span></div>
+        <div id="media-library-list" class="backend-media-list media-library-list"></div>
+      </div>
+      <div class="dialog-actions"><button class="primary-button" type="button" data-close-dialog>Schließen</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="delete-original-dialog">
+    <div class="delete-column-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Mediathek</p><h2>Originaldatei löschen?</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p id="delete-original-message" class="dialog-hint"></p>
+      <p class="delete-warning">Die Vorschau bleibt erhalten. Zusätzlich bleibt eine geschützte Sicherung bestehen, damit du das Original später wiederherstellen kannst.</p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Abbrechen</button><button id="continue-delete-original" class="danger-button" type="button">Weiter zur zweiten Bestätigung</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="delete-original-final-dialog">
+    <div class="delete-column-dialog-content">
+      <div class="dialog-header"><div><p class="eyebrow">Zweite Bestätigung</p><h2>Original endgültig entfernen?</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <p id="delete-original-final-message" class="dialog-hint"></p>
+      <p class="delete-warning"><strong>Bist du wirklich sicher?</strong> In der Tabelle bleibt danach nur die Vorschau sichtbar. Über „Original wiederherstellen“ kannst du das gesicherte Original zurückholen.</p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Doch nicht löschen</button><button id="confirm-delete-original" class="danger-button" type="button">Original endgültig löschen</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="publication-dialog" class="publication-dialog">
+    <form id="publication-form">
+      <div class="dialog-header"><div><p class="eyebrow">Instagram</p><h2>Veröffentlichung planen</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
+      <input id="publication-week" type="hidden">
+      <input id="publication-item-index" type="hidden">
+      <div id="publication-media-summary" class="publication-media-summary"></div>
+      <section id="publication-crop-section" class="publication-crop-section" hidden>
+        <div class="publication-crop-heading">
+          <div><strong>Instagram-Bildausschnitt wählen</strong><span>Zu hohe Bilder werden als 4:5-Beitrag vorbereitet. Die Originale in der Tabelle bleiben unverändert.</span></div>
+          <span class="crop-format-badge">4:5</span>
+        </div>
+        <div id="publication-crop-list" class="publication-crop-list"></div>
+      </section>
+      <div class="dialog-grid">
+        <label>Automatisch erkanntes Format<select id="publication-content-type" disabled><option value="post">Foto / Karussell</option><option value="story">Story</option><option value="reel">Reel</option></select></label>
+        <label>Veröffentlichen am<input id="publication-scheduled-at" type="datetime-local" required></label>
+      </div>
+      <label>Instagram-Text<textarea id="publication-caption" rows="6" placeholder="Beitragstext für Instagram"></textarea></label>
+      <label class="publish-approval-option"><input id="publication-customer-approved" type="checkbox"><span><strong>Vom Kunden bestätigt</strong><small>Übernimmt den aktuellen Stand aus „OK lt. Kunde“.</small></span></label>
+      <label class="publish-approval-option final"><input id="publication-admin-approved" type="checkbox"><span><strong>Final durch Hauptadmin freigeben</strong><small>Nur mit dieser Freigabe wird der Auftrag automatisch veröffentlicht.</small></span></label>
+      <p id="publication-error" class="form-error" hidden></p>
+      <div class="dialog-actions"><button class="secondary-button" type="button" data-close-dialog>Abbrechen</button><button id="save-publication-button" class="primary-button" type="submit">Veröffentlichung einplanen</button></div>
+    </form>
+  </dialog>
+
+  <template id="media-slot-template">
+    <div class="media-slot">
+      <div class="drop-zone" role="button" tabindex="0" aria-label="Bild oder Video auswählen">
+        <input type="file" accept="image/*,video/*" hidden>
+        <div class="drop-placeholder"><span aria-hidden="true">↑</span><strong>Medium ablegen</strong><small>Bild oder Video</small></div>
+        <div class="preview" hidden></div>
+      </div>
+      <button class="remove-media" type="button" aria-label="Medium entfernen" hidden>×</button>
+    </div>
+  </template>
+
+  <script src="script.js?v=99"></script>
 </body>
 </html>

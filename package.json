@@ -1,0 +1,20 @@
+{
+  "name": "socialflow-content-planner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "dev": "node --watch --env-file-if-exists=.env server.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "@cspell/dict-de-de": "^4.1.2",
+    "@cspell/dict-en_us": "^4.4.40",
+    "@cspell/dict-it-it": "^3.1.6",
+    "cspell-lib": "^10.3.3"
+  }
+}
