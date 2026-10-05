@@ -265,13 +265,20 @@ body.is-resizing-rows * { cursor: row-resize !important; }
 .preview img, .preview video { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; cursor: grab; transition: opacity .15s ease, transform .15s ease; }
 .preview img:active, .preview video:active { cursor: grabbing; }
 .preview img.media-copy-dragging, .preview video.media-copy-dragging { opacity: .62; transform: scale(.98); }
-.preview::after { position: absolute; right: 5px; bottom: 5px; border-radius: 6px; padding: 4px 6px; color: #fff; background: #172033d9; content: "Ziehen: sortieren oder kopieren"; font-size: .55rem; font-weight: 750; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+.preview::after { position: absolute; right: 34px; bottom: 5px; border-radius: 6px; padding: 4px 6px; color: #fff; background: #172033d9; content: "Ziehen: sortieren oder kopieren"; font-size: .55rem; font-weight: 750; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
 .media-slot:hover .preview:not([hidden])::after { opacity: 1; }
 .media-slot.media-drop-before::before,
 .media-slot.media-drop-after::after { position: absolute; z-index: 7; top: 4px; bottom: 4px; width: 4px; border-radius: 4px; background: #6757ed; box-shadow: 0 0 0 2px #fff; content: ""; pointer-events: none; }
 .media-slot.media-drop-before::before { left: -6px; }
 .media-slot.media-drop-after::after { right: -6px; }
 .remove-media { position: absolute; top: 5px; right: 5px; display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 50%; color: #fff; background: #172033cc; line-height: 1; }
+.media-note-button { position: absolute; z-index: 9; right: 5px; bottom: 5px; display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid #ffffffc7; border-radius: 7px; padding: 0; color: #fff; background: #172033dd; box-shadow: 0 2px 7px #1720334a; font-size: .78rem; font-weight: 900; line-height: 1; }
+.media-note-button:hover, .media-note-button:focus-visible, .media-note-button.has-note { color: #fff; background: #6757ed; }
+.media-note-tooltip { position: absolute; z-index: 30; top: calc(100% + 7px); left: 0; display: grid; width: clamp(210px, 230%, 320px); gap: 3px; border: 1px solid #d7dcea; border-radius: 10px; padding: 10px 12px; color: #202b3f; background: #fff; box-shadow: 0 14px 32px #17203330; font-size: .72rem; font-weight: 650; line-height: 1.5; opacity: 0; overflow-wrap: anywhere; pointer-events: none; transform: translateY(-3px); transition: opacity .14s ease, transform .14s ease; white-space: pre-wrap; }
+.media-note-tooltip strong { color: #6757ed; font-size: .62rem; letter-spacing: .05em; text-transform: uppercase; }
+.media-slot:last-child .media-note-tooltip { right: 0; left: auto; }
+.media-slot:hover, .media-slot:focus-within { z-index: 25; }
+.media-slot:hover .media-note-tooltip, .media-slot:focus-within .media-note-tooltip { opacity: 1; transform: translateY(0); }
 .add-media-button { display: flex; width: 100%; height: 100%; min-height: 0; grid-column: 2; align-items: center; justify-content: center; flex-direction: column; gap: 5px; border: 1.5px dashed #c9c4ed; border-radius: 8px; padding: 9px; color: #6757ed; background: #fff; font-size: .68rem; font-weight: 800; text-align: center; cursor: pointer; outline: none; transition: .15s ease; }
 .add-media-button strong { font-size: 1.1rem; line-height: 1; }
 .add-media-button small { color: #9b94bf; font-size: .58rem; font-weight: 650; }
@@ -625,6 +632,9 @@ dialog textarea:focus { border-color: #6757ed; box-shadow: 0 0 0 3px #6757ed17; 
 .media-viewer-navigation:disabled { opacity: .28; cursor: default; }
 .media-viewer-navigation.previous { left: 18px; }
 .media-viewer-navigation.next { right: 18px; }
+.media-note-dialog { width: min(540px, calc(100% - 30px)); }
+.media-note-file-name { margin: -5px 0 0; overflow: hidden; color: #6d778b; font-size: .72rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.media-note-dialog textarea { min-height: 120px; resize: vertical; }
 .is-hidden { display: none !important; }
 
 @media (max-width: 1300px) {
