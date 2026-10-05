@@ -32,9 +32,9 @@ const defaultState = {
     { id: "lea", name: "Lea Berger", role: "subadmin", tableIds: ["nordlicht"] }
   ],
   tables: [
-    { id: "nordlicht", name: "Nordlicht Café", storiesPerWeek: 5, postsPerWeek: 3, monthlyExtraStories: 0, monthlyExtraPosts: 0, displayStartWeek: 1, visibleYears: [...PLANNING_YEARS], fixedHashtags: "", viewMode: "year", selectedYear: PLANNING_START_YEAR, selectedWeek: 1, weeks: {} },
-    { id: "bergwerk", name: "Bergwerk Fitness", storiesPerWeek: 7, postsPerWeek: 4, monthlyExtraStories: 0, monthlyExtraPosts: 0, displayStartWeek: 1, visibleYears: [...PLANNING_YEARS], fixedHashtags: "", viewMode: "year", selectedYear: PLANNING_START_YEAR, selectedWeek: 1, weeks: {} },
-    { id: "atelier", name: "Atelier Grün", storiesPerWeek: 4, postsPerWeek: 2, monthlyExtraStories: 0, monthlyExtraPosts: 0, displayStartWeek: 1, visibleYears: [...PLANNING_YEARS], fixedHashtags: "", viewMode: "year", selectedYear: PLANNING_START_YEAR, selectedWeek: 1, weeks: {} }
+    { id: "nordlicht", name: "Nordlicht Café", planningCadence: "weekly", storiesPerWeek: 5, postsPerWeek: 3, storiesPerMonth: 0, postsPerMonth: 0, monthlyExtraStories: 0, monthlyExtraPosts: 0, displayStartWeek: 1, visibleYears: [...PLANNING_YEARS], fixedHashtags: "", viewMode: "year", selectedYear: PLANNING_START_YEAR, selectedWeek: 1, weeks: {} },
+    { id: "bergwerk", name: "Bergwerk Fitness", planningCadence: "weekly", storiesPerWeek: 7, postsPerWeek: 4, storiesPerMonth: 0, postsPerMonth: 0, monthlyExtraStories: 0, monthlyExtraPosts: 0, displayStartWeek: 1, visibleYears: [...PLANNING_YEARS], fixedHashtags: "", viewMode: "year", selectedYear: PLANNING_START_YEAR, selectedWeek: 1, weeks: {} },
+    { id: "atelier", name: "Atelier Grün", planningCadence: "weekly", storiesPerWeek: 4, postsPerWeek: 2, storiesPerMonth: 0, postsPerMonth: 0, monthlyExtraStories: 0, monthlyExtraPosts: 0, displayStartWeek: 1, visibleYears: [...PLANNING_YEARS], fixedHashtags: "", viewMode: "year", selectedYear: PLANNING_START_YEAR, selectedWeek: 1, weeks: {} }
   ]
 };
 
@@ -84,6 +84,11 @@ const tableForm = document.querySelector("#table-form");
 const dialogVisibleYears = document.querySelector("#dialog-visible-years");
 const visibleYearsError = document.querySelector("#visible-years-error");
 const monthlyExtrasError = document.querySelector("#monthly-extras-error");
+const dialogCadenceWeekly = document.querySelector("#dialog-cadence-weekly");
+const dialogCadenceMonthly = document.querySelector("#dialog-cadence-monthly");
+const dialogWeeklyAmounts = document.querySelector("#dialog-weekly-amounts");
+const dialogMonthlyAmounts = document.querySelector("#dialog-monthly-amounts");
+const monthlyPlanningHint = document.querySelector("#monthly-planning-hint");
 const subadminDialog = document.querySelector("#subadmin-dialog");
 const subadminForm = document.querySelector("#subadmin-form");
 const subadminTables = document.querySelector("#subadmin-tables");
@@ -325,9 +330,16 @@ function syncItemPersistentMedia(item) {
   item.media = itemMedia(item).map(persistentMediaRecord);
 }
 
+function storedWeekItems(week) {
+  const items = [week?.items, week?.weeklyCadenceItems, week?.monthlyCadenceItems]
+    .filter(Array.isArray)
+    .flat();
+  return [...new Set(items)];
+}
+
 function serializablePlannerState() {
   state.tables.forEach(table => Object.values(table.weeks ?? {}).forEach(week => {
-    (week?.items ?? []).forEach(syncItemPersistentMedia);
+    storedWeekItems(week).forEach(syncItemPersistentMedia);
   }));
   const copy = JSON.parse(JSON.stringify(state));
   return {
@@ -967,6 +979,29 @@ function monthWeeks(year, month) {
   return MONTH_WEEKS_CACHE.get(key);
 }
 
+function tablePlanningCadence(table) {
+  return table?.planningCadence === "monthly" ? "monthly" : "weekly";
+}
+
+function monthlyPlanOrdinals(table, year, weekNumber, type) {
+  if (tablePlanningCadence(table) !== "monthly") return [];
+  const property = type === "post" ? "postsPerMonth" : "storiesPerMonth";
+  const count = Math.min(120, Math.max(0, Math.trunc(Number(table?.[property]) || 0)));
+  if (!count) return [];
+  const weeks = monthWeeks(year, isoWeekThursday(year, weekNumber).getUTCMonth());
+  return Array.from({ length: count }, (_, index) => {
+    const weekIndex = count === 1
+      ? Math.floor((weeks.length - 1) / 2)
+      : Math.round((index * (weeks.length - 1)) / (count - 1));
+    return { ordinal: index + 1, week: weeks[weekIndex] };
+  }).filter(entry => entry.week === weekNumber).map(entry => entry.ordinal);
+}
+
+function monthlyPlanOrdinal(item) {
+  const ordinal = Number(item?.monthlyPlanOrdinal);
+  return Number.isInteger(ordinal) && ordinal > 0 ? ordinal : 0;
+}
+
 function monthlyExtraOrdinals(table, year, weekNumber, type) {
   const count = Math.min(30, Math.max(0, Math.trunc(Number(table[type === "post" ? "monthlyExtraPosts" : "monthlyExtraStories"]) || 0)));
   if (!count) return [];
@@ -1005,9 +1040,15 @@ function weekItems(table, weekNumber, year = PLANNING_START_YEAR) {
   }
 
   const resizeType = (type, targetCount) => {
-    const existing = items.filter(item => item.type === type && !extraOrdinal(item));
+    const existing = items.filter(item => item.type === type && !extraOrdinal(item) && !monthlyPlanOrdinal(item));
     return Array.from({ length: targetCount }, (_, index) => existing[index] ?? createContentItem(type));
   };
+
+  const monthlyItems = type => monthlyPlanOrdinals(table, year, weekNumber, type).map(ordinal => {
+    const item = items.find(candidate => candidate.type === type && monthlyPlanOrdinal(candidate) === ordinal) ?? createContentItem(type);
+    item.monthlyPlanOrdinal = ordinal;
+    return item;
+  });
 
   const extraItems = type => monthlyExtraOrdinals(table, year, weekNumber, type).map(ordinal => {
     const item = items.find(candidate => candidate.type === type && extraOrdinal(candidate) === ordinal) ?? createContentItem(type);
@@ -1015,9 +1056,11 @@ function weekItems(table, weekNumber, year = PLANNING_START_YEAR) {
     return item;
   });
 
+  const baseItems = tablePlanningCadence(table) === "monthly"
+    ? [...monthlyItems("post"), ...monthlyItems("story")]
+    : [...resizeType("post", table.postsPerWeek), ...resizeType("story", table.storiesPerWeek)];
   items = [
-    ...resizeType("post", table.postsPerWeek),
-    ...resizeType("story", table.storiesPerWeek),
+    ...baseItems,
     ...extraItems("post"),
     ...extraItems("story")
   ];
@@ -1028,8 +1071,23 @@ function weekItems(table, weekNumber, year = PLANNING_START_YEAR) {
     normalizeTranslationEntries(item);
     normalizeChangeComments(item);
   });
-  table.weeks[storageKey] = { items };
+  table.weeks[storageKey] = { ...(storedWeek ?? {}), items };
   return items;
+}
+
+function switchTablePlanningCadence(table, nextCadence) {
+  const currentCadence = tablePlanningCadence(table);
+  const normalizedNext = nextCadence === "monthly" ? "monthly" : "weekly";
+  if (!table || currentCadence === normalizedNext) return;
+  Object.values(table.weeks ?? {}).forEach(week => {
+    const activeItems = Array.isArray(week?.items) ? week.items : [];
+    const extraItems = activeItems.filter(extraOrdinal);
+    const baseItems = activeItems.filter(item => !extraOrdinal(item));
+    week[currentCadence === "monthly" ? "monthlyCadenceItems" : "weeklyCadenceItems"] = baseItems;
+    const restoredItems = week[normalizedNext === "monthly" ? "monthlyCadenceItems" : "weeklyCadenceItems"];
+    week.items = [...(Array.isArray(restoredItems) ? restoredItems : []), ...extraItems];
+  });
+  table.planningCadence = normalizedNext;
 }
 
 function rowHasContent(item) {
@@ -1123,15 +1181,17 @@ function pasteContentRow(row) {
   const swapping = rowHasContent(target);
   const rowTypeLabel = source.type === "story" ? "Story" : "Post";
   pushUndoState(swapping ? `Inhalte zweier ${rowTypeLabel}-Zeilen getauscht` : `Inhalt einer ${rowTypeLabel}-Zeile verschoben`);
-  const sourceOrdinal = extraOrdinal(source);
-  const targetOrdinal = extraOrdinal(target);
-  const keepSlot = (item, ordinal) => {
-    if (ordinal) item.monthlyExtraOrdinal = ordinal;
-    else delete item.monthlyExtraOrdinal;
+  const sourceSlot = { extra: extraOrdinal(source), monthly: monthlyPlanOrdinal(source) };
+  const targetSlot = { extra: extraOrdinal(target), monthly: monthlyPlanOrdinal(target) };
+  const keepSlot = (item, slot) => {
+    delete item.monthlyExtraOrdinal;
+    delete item.monthlyPlanOrdinal;
+    if (slot.extra) item.monthlyExtraOrdinal = slot.extra;
+    if (slot.monthly) item.monthlyPlanOrdinal = slot.monthly;
     return item;
   };
-  sourceItems[pendingRowCut.itemIndex] = keepSlot(swapping ? target : createContentItem(source.type), sourceOrdinal);
-  destinationItems[destination.itemIndex] = keepSlot(source, targetOrdinal);
+  sourceItems[pendingRowCut.itemIndex] = keepSlot(swapping ? target : createContentItem(source.type), sourceSlot);
+  destinationItems[destination.itemIndex] = keepSlot(source, targetSlot);
   pendingRowCut = null;
   rowCutBanner.hidden = true;
   renderWorkspace();
@@ -1298,8 +1358,11 @@ function syncSharedTableLayout(sourceTable) {
 
 function schemaFromTemplateTable(table) {
   return {
+    planningCadence: tablePlanningCadence(table),
     storiesPerWeek: Number(table?.storiesPerWeek) || 0,
     postsPerWeek: Number(table?.postsPerWeek) || 0,
+    storiesPerMonth: Number(table?.storiesPerMonth) || 0,
+    postsPerMonth: Number(table?.postsPerMonth) || 0,
     monthlyExtraStories: Number(table?.monthlyExtraStories) || 0,
     monthlyExtraPosts: Number(table?.monthlyExtraPosts) || 0,
     displayStartWeek: tableDisplayStartWeek(table),
@@ -4442,15 +4505,38 @@ tableBody.addEventListener("drop", event => {
   else showMedia(event.dataTransfer.files[0], uploadTarget);
 });
 
+function setDialogPlanningCadence(cadence) {
+  const monthly = cadence === "monthly";
+  dialogCadenceMonthly.checked = monthly;
+  dialogCadenceWeekly.checked = !monthly;
+  dialogWeeklyAmounts.hidden = monthly;
+  dialogMonthlyAmounts.hidden = !monthly;
+  monthlyPlanningHint.hidden = !monthly;
+  dialogWeeklyAmounts.querySelectorAll("input").forEach(input => { input.disabled = monthly; });
+  dialogMonthlyAmounts.querySelectorAll("input").forEach(input => { input.disabled = !monthly; });
+}
+
+function populateDialogPlanning(table) {
+  document.querySelector("#dialog-stories").value = Number(table?.storiesPerWeek) || 0;
+  document.querySelector("#dialog-posts").value = Number(table?.postsPerWeek) || 0;
+  document.querySelector("#dialog-stories-month").value = Number(table?.storiesPerMonth) || 0;
+  document.querySelector("#dialog-posts-month").value = Number(table?.postsPerMonth) || 0;
+  document.querySelector("#dialog-monthly-stories").value = Number(table?.monthlyExtraStories) || 0;
+  document.querySelector("#dialog-monthly-posts").value = Number(table?.monthlyExtraPosts) || 0;
+  setDialogPlanningCadence(tablePlanningCadence(table));
+}
+
+[dialogCadenceWeekly, dialogCadenceMonthly].forEach(input => input.addEventListener("change", () => {
+  setDialogPlanningCadence(dialogCadenceMonthly.checked ? "monthly" : "weekly");
+  monthlyExtrasError.hidden = true;
+}));
+
 document.querySelector("#new-table-button").addEventListener("click", () => {
   const template = refreshTableTemplateSchema();
   tableForm.reset();
   document.querySelector("#editing-table-id").value = "";
   document.querySelector("#table-dialog-title").textContent = "Neue Kundentabelle";
-  document.querySelector("#dialog-stories").value = template.storiesPerWeek;
-  document.querySelector("#dialog-posts").value = template.postsPerWeek;
-  document.querySelector("#dialog-monthly-stories").value = template.monthlyExtraStories || 0;
-  document.querySelector("#dialog-monthly-posts").value = template.monthlyExtraPosts || 0;
+  populateDialogPlanning(template);
   monthlyExtrasError.hidden = true;
   renderVisibleYearOptions(template.visibleYears);
   populateStartWeekOptions(template.displayStartWeek, template.visibleYears[0] ?? PLANNING_START_YEAR);
@@ -4464,10 +4550,7 @@ document.querySelector("#table-settings-button").addEventListener("click", () =>
   document.querySelector("#editing-table-id").value = table.id;
   document.querySelector("#table-dialog-title").textContent = "Tabelle verwalten";
   document.querySelector("#client-name").value = table.name;
-  document.querySelector("#dialog-stories").value = table.storiesPerWeek;
-  document.querySelector("#dialog-posts").value = table.postsPerWeek;
-  document.querySelector("#dialog-monthly-stories").value = table.monthlyExtraStories || 0;
-  document.querySelector("#dialog-monthly-posts").value = table.monthlyExtraPosts || 0;
+  populateDialogPlanning(table);
   monthlyExtrasError.hidden = true;
   const visibleYears = tableVisibleYears(table);
   renderVisibleYearOptions(visibleYears);
@@ -4483,6 +4566,28 @@ dialogVisibleYears.addEventListener("change", () => {
   populateStartWeekOptions(currentStartWeek, selectedYears[0] ?? PLANNING_START_YEAR);
 });
 
+function configurationWouldRemoveContent(table, values) {
+  return Object.values(table.weeks ?? {}).some(week => {
+    const items = Array.isArray(week?.items) ? week.items : [];
+    return items.some(item => {
+      const extra = extraOrdinal(item);
+      if (extra) {
+        const extraLimit = item.type === "post" ? values.monthlyExtraPosts : values.monthlyExtraStories;
+        return extra > extraLimit && rowHasContent(item);
+      }
+      if (tablePlanningCadence(table) !== values.planningCadence) return false;
+      if (values.planningCadence === "monthly") {
+        const limit = item.type === "post" ? values.postsPerMonth : values.storiesPerMonth;
+        return monthlyPlanOrdinal(item) > limit && rowHasContent(item);
+      }
+      const typeItems = items.filter(candidate => candidate.type === item.type
+        && !extraOrdinal(candidate) && !monthlyPlanOrdinal(candidate));
+      const limit = item.type === "post" ? values.postsPerWeek : values.storiesPerWeek;
+      return typeItems.indexOf(item) >= limit && rowHasContent(item);
+    });
+  });
+}
+
 tableForm.addEventListener("submit", event => {
   event.preventDefault();
   const editingId = document.querySelector("#editing-table-id").value;
@@ -4493,8 +4598,11 @@ tableForm.addEventListener("submit", event => {
   }
   const values = {
     name: document.querySelector("#client-name").value.trim(),
+    planningCadence: dialogCadenceMonthly.checked ? "monthly" : "weekly",
     storiesPerWeek: Number(document.querySelector("#dialog-stories").value),
     postsPerWeek: Number(document.querySelector("#dialog-posts").value),
+    storiesPerMonth: Number(document.querySelector("#dialog-stories-month").value),
+    postsPerMonth: Number(document.querySelector("#dialog-posts-month").value),
     monthlyExtraStories: Number(document.querySelector("#dialog-monthly-stories").value),
     monthlyExtraPosts: Number(document.querySelector("#dialog-monthly-posts").value),
     displayStartWeek: Number(document.querySelector("#dialog-start-week").value),
@@ -4503,16 +4611,14 @@ tableForm.addEventListener("submit", event => {
   if (!values.name) return;
   if (editingId) {
     const table = state.tables.find(item => item.id === editingId);
-    const removingContent = Object.values(table.weeks ?? {}).some(week => (week.items ?? []).some(item => {
-      const limit = item.type === "post" ? values.monthlyExtraPosts : values.monthlyExtraStories;
-      return extraOrdinal(item) > limit && rowHasContent(item);
-    }));
+    const removingContent = configurationWouldRemoveContent(table, values);
     monthlyExtrasError.hidden = !removingContent;
     if (removingContent) return;
   }
   pushUndoState(editingId ? "Tabelleneinstellungen geändert" : "Neue Kundentabelle angelegt");
   if (editingId) {
     const table = state.tables.find(item => item.id === editingId);
+    switchTablePlanningCadence(table, values.planningCadence);
     Object.assign(table, values);
     table.selectedYear = visibleYears.includes(Number(table.selectedYear)) ? Number(table.selectedYear) : visibleYears[0];
     const maximumWeek = weeksInIsoYear(table.selectedYear);

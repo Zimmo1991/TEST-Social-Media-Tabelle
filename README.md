@@ -19,7 +19,8 @@ Die Oberfläche unterstützt die aktuellen Versionen von Chrome, Edge, Firefox u
 - Für jeden Unteradmin eine oder mehrere sichtbare Kundentabellen auswählen und die Freigabe später bearbeiten
 - Inhalt einer Post- oder Story-Zeile mit dem Scherensymbol ausschneiden und in eine freie Zeile desselben Typs verschieben oder mit einer belegten Zeile tauschen; ein anderer Klick bricht den Vorgang ab und lässt die Quelle unverändert
 - Pro Kundentabelle eigene Zusatzspalten mit frei wählbarem Titel sowie Text- oder Häkchen-Feld anlegen
-- Stories und Posts pro Woche sowie zusätzliche Beiträge und Stories pro Monat festlegen
+- Den Planungsrhythmus je Kundentabelle zwischen einer festen Anzahl pro Woche und einer festen Anzahl pro Monat umschalten; Monatsinhalte werden gleichmäßig auf die Kalenderwochen verteilt
+- Zusätzliche Beiträge und Stories pro Monat unabhängig vom gewählten Planungsrhythmus festlegen
 - Durchgehende Jahresübersicht von 2026 bis einschließlich 2031 mit den korrekten 52 bzw. 53 ISO-Kalenderwochen und Monatswochen wie „Jan 1“ oder „Feb 2“
 - Sichtbare Jahre pro Kundentabelle unter „Tabelle verwalten“ auswählen; ausgeblendete Jahre behalten alle gespeicherten Inhalte
 - Kalenderwochen in der Jahresansicht durch eine deutlichere Trennlinie voneinander abgrenzen

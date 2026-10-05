@@ -156,16 +156,28 @@
       <div class="dialog-header"><div><p class="eyebrow">Kundenverwaltung</p><h2 id="table-dialog-title">Neue Kundentabelle</h2></div><button class="dialog-close" type="button" data-close-dialog aria-label="Schließen">×</button></div>
       <input id="editing-table-id" type="hidden">
       <label>Kundenname<input id="client-name" name="client-name" required placeholder="z. B. Café Morgenrot"></label>
-      <div class="dialog-grid">
+      <fieldset class="permission-fieldset planning-cadence-fieldset">
+        <legend>Planungsrhythmus</legend>
+        <div class="planning-cadence-options">
+          <label><input id="dialog-cadence-weekly" type="radio" name="dialog-cadence" value="weekly" checked><span><strong>Pro Woche</strong><small>Jede Kalenderwoche erhält die gewählte Anzahl.</small></span></label>
+          <label><input id="dialog-cadence-monthly" type="radio" name="dialog-cadence" value="monthly"><span><strong>Pro Monat</strong><small>Die gewählte Anzahl wird gleichmäßig im Monat verteilt.</small></span></label>
+        </div>
+      </fieldset>
+      <div id="dialog-weekly-amounts" class="dialog-grid">
         <label>Stories pro Woche<input id="dialog-stories" type="number" min="0" max="30" value="5" required></label>
         <label>Posts pro Woche<input id="dialog-posts" type="number" min="0" max="30" value="3" required></label>
       </div>
+      <div id="dialog-monthly-amounts" class="dialog-grid" hidden>
+        <label>Stories pro Monat<input id="dialog-stories-month" type="number" min="0" max="120" value="0" required></label>
+        <label>Posts pro Monat<input id="dialog-posts-month" type="number" min="0" max="120" value="0" required></label>
+      </div>
+      <p id="monthly-planning-hint" class="dialog-hint" hidden>Die Beiträge und Stories werden möglichst gleichmäßig auf die Kalenderwochen des jeweiligen Monats verteilt.</p>
       <div class="dialog-grid">
         <label>Zusätzliche Stories pro Monat<input id="dialog-monthly-stories" type="number" min="0" max="30" value="0" required></label>
         <label>Zusätzliche Posts pro Monat<input id="dialog-monthly-posts" type="number" min="0" max="30" value="0" required></label>
       </div>
       <p class="dialog-hint">Die 1. Zusatzzeile steht in der letzten Kalenderwoche des Monats, die 2. nach den ersten zwei Monatswochen. Weitere Zusatzzeilen wechseln zwischen diesen beiden Stellen.</p>
-      <p id="monthly-extras-error" class="form-error" hidden>Eine wegfallende Zusatzzeile enthält noch Inhalte. Verschiebe sie zuerst in eine andere Zeile.</p>
+      <p id="monthly-extras-error" class="form-error" hidden>Eine durch die Änderung wegfallende Zeile enthält noch Inhalte. Verschiebe sie zuerst in eine andere Zeile.</p>
       <label>Tabelle anzeigen ab<select id="dialog-start-week" required></select></label>
       <p class="dialog-hint">Frühere Kalenderwochen bleiben gespeichert, werden für diese Kundentabelle aber nicht angezeigt.</p>
       <fieldset class="permission-fieldset">
