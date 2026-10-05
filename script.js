@@ -89,6 +89,8 @@ const dialogCadenceMonthly = document.querySelector("#dialog-cadence-monthly");
 const dialogWeeklyAmounts = document.querySelector("#dialog-weekly-amounts");
 const dialogMonthlyAmounts = document.querySelector("#dialog-monthly-amounts");
 const monthlyPlanningHint = document.querySelector("#monthly-planning-hint");
+const dialogMonthlyExtras = document.querySelector("#dialog-monthly-extras");
+const dialogMonthlyExtrasHint = document.querySelector("#dialog-monthly-extras-hint");
 const subadminDialog = document.querySelector("#subadmin-dialog");
 const subadminForm = document.querySelector("#subadmin-form");
 const subadminTables = document.querySelector("#subadmin-tables");
@@ -1003,6 +1005,7 @@ function monthlyPlanOrdinal(item) {
 }
 
 function monthlyExtraOrdinals(table, year, weekNumber, type) {
+  if (tablePlanningCadence(table) === "monthly") return [];
   const count = Math.min(30, Math.max(0, Math.trunc(Number(table[type === "post" ? "monthlyExtraPosts" : "monthlyExtraStories"]) || 0)));
   if (!count) return [];
   const weeks = monthWeeks(year, isoWeekThursday(year, weekNumber).getUTCMonth());
@@ -1081,11 +1084,9 @@ function switchTablePlanningCadence(table, nextCadence) {
   if (!table || currentCadence === normalizedNext) return;
   Object.values(table.weeks ?? {}).forEach(week => {
     const activeItems = Array.isArray(week?.items) ? week.items : [];
-    const extraItems = activeItems.filter(extraOrdinal);
-    const baseItems = activeItems.filter(item => !extraOrdinal(item));
-    week[currentCadence === "monthly" ? "monthlyCadenceItems" : "weeklyCadenceItems"] = baseItems;
+    week[currentCadence === "monthly" ? "monthlyCadenceItems" : "weeklyCadenceItems"] = activeItems;
     const restoredItems = week[normalizedNext === "monthly" ? "monthlyCadenceItems" : "weeklyCadenceItems"];
-    week.items = [...(Array.isArray(restoredItems) ? restoredItems : []), ...extraItems];
+    week.items = Array.isArray(restoredItems) ? restoredItems : [];
   });
   table.planningCadence = normalizedNext;
 }
@@ -4512,8 +4513,11 @@ function setDialogPlanningCadence(cadence) {
   dialogWeeklyAmounts.hidden = monthly;
   dialogMonthlyAmounts.hidden = !monthly;
   monthlyPlanningHint.hidden = !monthly;
+  dialogMonthlyExtras.hidden = monthly;
+  dialogMonthlyExtrasHint.hidden = monthly;
   dialogWeeklyAmounts.querySelectorAll("input").forEach(input => { input.disabled = monthly; });
   dialogMonthlyAmounts.querySelectorAll("input").forEach(input => { input.disabled = !monthly; });
+  dialogMonthlyExtras.querySelectorAll("input").forEach(input => { input.disabled = monthly; });
 }
 
 function populateDialogPlanning(table) {

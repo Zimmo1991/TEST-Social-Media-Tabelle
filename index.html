@@ -172,11 +172,11 @@
         <label>Posts pro Monat<input id="dialog-posts-month" type="number" min="0" max="120" value="0" required></label>
       </div>
       <p id="monthly-planning-hint" class="dialog-hint" hidden>Die Beiträge und Stories werden möglichst gleichmäßig auf die Kalenderwochen des jeweiligen Monats verteilt.</p>
-      <div class="dialog-grid">
+      <div id="dialog-monthly-extras" class="dialog-grid">
         <label>Zusätzliche Stories pro Monat<input id="dialog-monthly-stories" type="number" min="0" max="30" value="0" required></label>
         <label>Zusätzliche Posts pro Monat<input id="dialog-monthly-posts" type="number" min="0" max="30" value="0" required></label>
       </div>
-      <p class="dialog-hint">Die 1. Zusatzzeile steht in der letzten Kalenderwoche des Monats, die 2. nach den ersten zwei Monatswochen. Weitere Zusatzzeilen wechseln zwischen diesen beiden Stellen.</p>
+      <p id="dialog-monthly-extras-hint" class="dialog-hint">Die 1. Zusatzzeile steht in der letzten Kalenderwoche des Monats, die 2. nach den ersten zwei Monatswochen. Weitere Zusatzzeilen wechseln zwischen diesen beiden Stellen.</p>
       <p id="monthly-extras-error" class="form-error" hidden>Eine durch die Änderung wegfallende Zeile enthält noch Inhalte. Verschiebe sie zuerst in eine andere Zeile.</p>
       <label>Tabelle anzeigen ab<select id="dialog-start-week" required></select></label>
       <p class="dialog-hint">Frühere Kalenderwochen bleiben gespeichert, werden für diese Kundentabelle aber nicht angezeigt.</p>
