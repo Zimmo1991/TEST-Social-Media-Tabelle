@@ -26,7 +26,8 @@ async function ocrWorker() {
     }).then(async worker => {
       await worker.setParameters({
         tessedit_pageseg_mode: PSM.AUTO,
-        preserve_interword_spaces: "1"
+        preserve_interword_spaces: "1",
+        user_defined_dpi: "300"
       });
       return worker;
     }).catch(error => {

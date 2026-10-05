@@ -3770,6 +3770,51 @@ async function ocrBlobFromRecord(record) {
   }
 }
 
+const OCR_SCAN_REGIONS = Object.freeze([
+  { name: "unten links", left: 0, top: 0.625, width: 0.74, height: 0.34 },
+  { name: "unten rechts", left: 0.26, top: 0.625, width: 0.74, height: 0.34 },
+  { name: "oben links", left: 0, top: 0, width: 0.74, height: 0.34 },
+  { name: "oben rechts", left: 0.26, top: 0, width: 0.74, height: 0.34 },
+  { name: "mittig links", left: 0, top: 0.33, width: 0.74, height: 0.34 },
+  { name: "mittig rechts", left: 0.26, top: 0.33, width: 0.74, height: 0.34 }
+]);
+
+async function ocrImageVariants(imageBlob) {
+  const variants = [{ name: "gesamtes Bild", blob: imageBlob }];
+  const drawable = await loadImageDrawable(imageBlob);
+  try {
+    const sourceWidth = drawable.naturalWidth || drawable.width;
+    const sourceHeight = drawable.naturalHeight || drawable.height;
+    for (const region of OCR_SCAN_REGIONS) {
+      const sourceX = Math.max(0, Math.round(sourceWidth * region.left));
+      const sourceY = Math.max(0, Math.round(sourceHeight * region.top));
+      const cropWidth = Math.max(1, Math.min(sourceWidth - sourceX, Math.round(sourceWidth * region.width)));
+      const cropHeight = Math.max(1, Math.min(sourceHeight - sourceY, Math.round(sourceHeight * region.height)));
+      const canvas = document.createElement("canvas");
+      canvas.width = cropWidth;
+      canvas.height = cropHeight;
+      const context = canvas.getContext("2d", { alpha: false });
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(drawable, sourceX, sourceY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+      variants.push({ name: region.name, blob: await canvasBlob(canvas, 0.94) });
+    }
+    return variants;
+  } finally {
+    drawable.close?.();
+  }
+}
+
+function ocrResultScore(result) {
+  const text = String(result?.text || "").trim();
+  const letters = text.match(/\p{L}/gu)?.length || 0;
+  const digits = text.match(/\p{N}/gu)?.length || 0;
+  if (letters + digits < 3) return -1;
+  const words = text.match(/\p{L}{3,}/gu)?.length || 0;
+  const confidence = Math.max(0, Math.min(100, Number(result?.confidence) || 0));
+  return letters + digits + (words * 10) + confidence;
+}
+
 async function recognizePendingMediaText() {
   const context = pendingMediaOcr;
   if (!context || context.running) return;
@@ -3783,10 +3828,23 @@ async function recognizePendingMediaText() {
   try {
     const imageBlob = await ocrBlobFromRecord(context.record);
     if (pendingMediaOcr !== context) return;
-    const form = new FormData();
-    form.append("tableId", currentTable()?.id || "");
-    form.append("image", imageBlob, "ocr-image.jpg");
-    const result = await apiRequest("/api/ocr", { method: "POST", body: form });
+    const variants = await ocrImageVariants(imageBlob);
+    let result = { text: "", confidence: 0 };
+    let bestScore = -1;
+    for (let index = 0; index < variants.length; index += 1) {
+      if (pendingMediaOcr !== context) return;
+      const variant = variants[index];
+      context.status.textContent = `${isVideo ? `Videobild bei ${VIDEO_OCR_CAPTURE_PERCENT} %` : "Bildtext"} wird lokal erkannt … ${index + 1}/${variants.length}`;
+      const form = new FormData();
+      form.append("tableId", currentTable()?.id || "");
+      form.append("image", variant.blob, `ocr-${index + 1}.jpg`);
+      const candidate = await apiRequest("/api/ocr", { method: "POST", body: form });
+      const candidateScore = ocrResultScore(candidate);
+      if (candidateScore > bestScore) {
+        result = candidate;
+        bestScore = candidateScore;
+      }
+    }
     if (pendingMediaOcr !== context) return;
     context.textarea.value = String(result.text || "");
     context.status.className = "media-ocr-status success";
