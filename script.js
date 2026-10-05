@@ -3903,6 +3903,29 @@ function savePendingMediaNote(note) {
   renderMediaRecord(record, slot.querySelector(".drop-zone"), Boolean(item.completed));
 }
 
+function applyMediaPreviewOrientation(media, preview, slot) {
+  const updateOrientation = () => {
+    const width = media instanceof HTMLVideoElement ? media.videoWidth : media.naturalWidth;
+    const height = media instanceof HTMLVideoElement ? media.videoHeight : media.naturalHeight;
+    if (!width || !height) return;
+    const isPortrait = height > width;
+    media.classList.toggle("portrait-media", isPortrait);
+    preview.classList.toggle("portrait-media", isPortrait);
+    slot?.classList.toggle("portrait-media", isPortrait);
+    if (isPortrait) slot?.style.setProperty("--portrait-media-ratio", `${width} / ${height}`);
+    else slot?.style.removeProperty("--portrait-media-ratio");
+  };
+
+  if (media instanceof HTMLVideoElement) {
+    if (media.readyState >= 1) updateOrientation();
+    else media.addEventListener("loadedmetadata", updateOrientation, { once: true });
+  } else if (media.complete && media.naturalWidth) {
+    updateOrientation();
+  } else {
+    media.addEventListener("load", updateOrientation, { once: true });
+  }
+}
+
 function renderMediaRecord(record, zone, useCompletionPreview = false) {
   if (!record) return;
   const originalAvailable = record.fileState !== "preview_only" && record.originalAvailable !== false && Boolean(record.id || record.file || record.url);
@@ -3912,6 +3935,9 @@ function renderMediaRecord(record, zone, useCompletionPreview = false) {
   const sourceUrl = usePreviewSource ? record.previewUrl : record.url;
   if (!sourceUrl) return;
   const sourceType = usePreviewSource ? (record.previewType || "image/jpeg") : (record.type || "image/jpeg");
+  const slot = zone.closest(".media-slot");
+  slot?.classList.remove("portrait-media");
+  slot?.style.removeProperty("--portrait-media-ratio");
   const stateClasses = ["media-file-state-original-only", "media-file-state-original-and-preview", "media-file-state-preview-only"];
   zone.classList.remove(...stateClasses);
   zone.classList.add("has-media");
@@ -3945,9 +3971,10 @@ function renderMediaRecord(record, zone, useCompletionPreview = false) {
   } else {
     preview.replaceChildren(media);
   }
+  applyMediaPreviewOrientation(media, preview, slot);
   preview.hidden = false;
   zone.querySelector(".drop-placeholder").hidden = true;
-  zone.closest(".media-slot")?.querySelector(".remove-media")?.removeAttribute("hidden");
+  slot?.querySelector(".remove-media")?.removeAttribute("hidden");
   renderMediaNoteControls(record, zone, isImage);
 }
 
@@ -4045,6 +4072,8 @@ function clearMedia(zone, deleteRemote = true) {
   zone.querySelector(".drop-placeholder").hidden = false;
   zone.querySelector("input").value = "";
   const slot = zone.closest(".media-slot");
+  slot?.classList.remove("portrait-media");
+  slot?.style.removeProperty("--portrait-media-ratio");
   if (pendingMediaNote?.slot === slot) closeMediaNoteEditor();
   if (pendingMediaOcr?.slot === slot) closeMediaOcrEditor();
   slot?.querySelectorAll(".media-note-button, .media-note-tooltip, .media-note-editor, .media-ocr-button, .media-ocr-editor").forEach(element => element.remove());

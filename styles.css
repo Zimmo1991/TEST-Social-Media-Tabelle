@@ -254,8 +254,11 @@ body.is-resizing-rows * { cursor: row-resize !important; }
 .media-list { display: grid; height: 105px; grid-template-columns: minmax(170px, 1fr) 112px; align-items: stretch; gap: 9px; }
 .content-card.week-view .media-list { height: calc(var(--week-row-height, 165px) - 27px); min-height: 105px; }
 .content-card:not(.week-view) tr[data-year-week-height] .media-list { height: calc(var(--year-week-row-height, 132px) - 27px); min-height: 105px; }
+.media-cell { position: relative; }
+.media-cell:has(.media-slot.portrait-media) .media-list { position: absolute; inset: 12px 13px; height: auto; }
 .media-slots { display: flex; min-width: 0; min-height: 0; flex-direction: row; gap: 9px; }
 .media-slot { position: relative; width: 100%; min-height: 0; flex: 1 1 0; }
+.media-slot.portrait-media { width: auto; height: 100%; aspect-ratio: var(--portrait-media-ratio, 9 / 16); flex: 0 0 auto; }
 .drop-zone { display: grid; width: 100%; height: 100%; min-height: 0; place-items: center; overflow: hidden; border: 1.5px dashed #cbd1db; border-radius: 9px; color: #6e788a; background: #fafbfc; cursor: pointer; outline: none; transition: .15s ease; }
 .drop-zone:hover, .drop-zone:focus-visible, .drop-zone.dragging { border-color: #6757ed; color: #5547d4; background: #f5f3ff; box-shadow: 0 0 0 3px #6757ed17; }
 .drop-zone.has-media { border-color: transparent; border-style: solid; background: #fff; box-shadow: none; }
@@ -270,6 +273,7 @@ body.is-resizing-rows * { cursor: row-resize !important; }
 .media-file-state-dot.original { background: #159447; }
 .media-file-state-dot.preview { background: #1976d2; }
 .preview img, .preview video { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; cursor: grab; transition: opacity .15s ease, transform .15s ease; }
+.preview img.portrait-media, .preview video.portrait-media { object-fit: contain; background: #eef1f5; }
 .preview img:active, .preview video:active { cursor: grabbing; }
 .preview img.media-copy-dragging, .preview video.media-copy-dragging { opacity: .62; transform: scale(.98); }
 .preview::after { position: absolute; right: 34px; bottom: 5px; border-radius: 6px; padding: 4px 6px; color: #fff; background: #172033d9; content: "Ziehen: sortieren oder kopieren"; font-size: .55rem; font-weight: 750; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
