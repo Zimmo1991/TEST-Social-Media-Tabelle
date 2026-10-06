@@ -672,6 +672,12 @@ test("plant und veröffentlicht einen freigegebenen Auftrag im Testmodus", async
     assert.equal(originalOnlyResult.preview.id, ownerPreviewMedia.id);
     assert.equal((await authenticatedFetch(`/api/planner-media/${plannerMedia.id}`)).status, 404);
     assert.equal((await authenticatedFetch(`/api/planner-media/${ownerPreviewMedia.id}`)).status, 200);
+    const stalePlannerSave = await authenticatedFetch("/api/planner-state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: mediaPlanner.state })
+    });
+    assert.equal(stalePlannerSave.status, 200);
     const plannerAfterOriginalDelete = await (await authenticatedFetch("/api/planner-state")).json();
     const retainedPreviewRecord = plannerAfterOriginalDelete.state.tables.find(table => table.id === "test-table").weeks["2026-1"].items[0].media[0];
     assert.equal(retainedPreviewRecord.id, "");
@@ -712,6 +718,76 @@ test("plant und veröffentlicht einen freigegebenen Auftrag im Testmodus", async
     assert.equal(restoredOverviewMedia.originalAvailable, true);
     assert.equal(restoredOverviewMedia.previewAvailable, true);
     assert.equal(restoredOverviewMedia.restorableOriginal, false);
+
+    const videoMediaForm = new FormData();
+    videoMediaForm.append("tableId", "test-table");
+    videoMediaForm.append("sourcePath", "Kundenvideos/2026/abschluss-test.mp4");
+    videoMediaForm.append("media", new Blob(["browseruebergreifendes-originalvideo"], { type: "video/mp4" }), "abschluss-test.mp4");
+    const videoMediaUpload = await authenticatedFetch("/api/planner-media", { method: "POST", body: videoMediaForm });
+    assert.equal(videoMediaUpload.status, 201);
+    const videoMedia = (await videoMediaUpload.json()).media;
+
+    const oversizedVideoPreviewForm = new FormData();
+    oversizedVideoPreviewForm.append("tableId", "test-table");
+    oversizedVideoPreviewForm.append("media", new Blob([new Uint8Array((2 * 1024 * 1024) + 1)], { type: "image/jpeg" }), `.preview-${videoMedia.id}.jpg`);
+    const oversizedVideoPreviewUpload = await authenticatedFetch("/api/planner-media", { method: "POST", body: oversizedVideoPreviewForm });
+    assert.equal(oversizedVideoPreviewUpload.status, 413);
+
+    const videoPreviewBytes = new Uint8Array(2 * 1024 * 1024);
+    const videoPreviewForm = new FormData();
+    videoPreviewForm.append("tableId", "test-table");
+    videoPreviewForm.append("media", new Blob([videoPreviewBytes], { type: "image/jpeg" }), `.preview-${videoMedia.id}.jpg`);
+    const videoPreviewUpload = await authenticatedFetch("/api/planner-media", { method: "POST", body: videoPreviewForm });
+    assert.equal(videoPreviewUpload.status, 201);
+    const videoPreviewMedia = (await videoPreviewUpload.json()).media;
+    assert.equal(videoPreviewMedia.size, 2 * 1024 * 1024);
+
+    const videoPlannerResponse = await authenticatedFetch("/api/planner-state");
+    const videoPlanner = await videoPlannerResponse.json();
+    const videoPlannerItem = videoPlanner.state.tables.find(table => table.id === "test-table").weeks["2026-1"].items[0];
+    videoPlannerItem.media.push({
+      ...videoMedia,
+      previewId: videoPreviewMedia.id,
+      previewName: videoPreviewMedia.name,
+      previewType: videoPreviewMedia.type,
+      previewSize: videoPreviewMedia.size,
+      previewUrl: videoPreviewMedia.url
+    });
+    const videoPlannerSave = await authenticatedFetch("/api/planner-state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: videoPlanner.state })
+    });
+    assert.equal(videoPlannerSave.status, 200);
+
+    const archiveVideoResponse = await authenticatedFetch(`/api/planner-media/${videoMedia.id}?originalOnly=1`, { method: "DELETE" });
+    assert.equal(archiveVideoResponse.status, 200);
+    const archiveVideoResult = await archiveVideoResponse.json();
+    assert.equal(archiveVideoResult.originalDeleted, true);
+    assert.equal(archiveVideoResult.sourceReference, "Kundenvideos/2026/abschluss-test.mp4");
+    assert.equal((await authenticatedFetch(`/api/planner-media/${videoMedia.id}`)).status, 404);
+    assert.equal((await authenticatedFetch(`/api/planner-media/${videoPreviewMedia.id}`)).status, 200);
+    const plannerAfterVideoArchive = await (await authenticatedFetch("/api/planner-state")).json();
+    const archivedVideoRecord = plannerAfterVideoArchive.state.tables.find(table => table.id === "test-table").weeks["2026-1"].items[0].media
+      .find(media => media.archivedOriginalId === videoMedia.id);
+    assert.ok(archivedVideoRecord);
+    assert.equal(archivedVideoRecord.type, "video/mp4");
+    assert.equal(archivedVideoRecord.fileState, "preview_only");
+    assert.equal(archivedVideoRecord.previewSize, 2 * 1024 * 1024);
+    assert.equal(archivedVideoRecord.sourceReference, "Kundenvideos/2026/abschluss-test.mp4");
+
+    const restoreVideoResponse = await authenticatedFetch(`/api/planner-media/${videoMedia.id}/restore`, { method: "POST" });
+    assert.equal(restoreVideoResponse.status, 200);
+    const restoredVideoDownload = await authenticatedFetch(`/api/planner-media/${videoMedia.id}`);
+    assert.equal(restoredVideoDownload.status, 200);
+    assert.equal(await restoredVideoDownload.text(), "browseruebergreifendes-originalvideo");
+    const plannerAfterVideoRestore = await (await authenticatedFetch("/api/planner-state")).json();
+    const restoredVideoRecord = plannerAfterVideoRestore.state.tables.find(table => table.id === "test-table").weeks["2026-1"].items[0].media
+      .find(media => media.id === videoMedia.id);
+    assert.ok(restoredVideoRecord);
+    assert.equal(restoredVideoRecord.originalAvailable, true);
+    assert.equal(restoredVideoRecord.fileState, "original_and_preview");
+    assert.equal(restoredVideoRecord.sourceReference, "Kundenvideos/2026/abschluss-test.mp4");
 
     const protectedSource = await fetch(`http://127.0.0.1:${port}/server.mjs`);
     assert.equal(protectedSource.status, 404);
