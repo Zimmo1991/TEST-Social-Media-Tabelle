@@ -367,6 +367,47 @@ function storedPlannerState() {
   }
 }
 
+function reconcileArchivedPlannerMedia(state) {
+  if (!state) return state;
+  const archivedOriginals = new Map(database.prepare("SELECT * FROM planner_media WHERE archived_at IS NOT NULL").all()
+    .filter(row => !String(row.original_name || "").startsWith(".preview-"))
+    .map(row => [String(row.id), row]));
+  if (!archivedOriginals.size) return state;
+  const previews = new Map();
+  database.prepare("SELECT * FROM planner_media WHERE byte_size <= ? ORDER BY created_at DESC").all(2 * 1024 * 1024).forEach(row => {
+    const match = String(row.original_name || "").match(/^\.preview-(.+)\.(?:jpe?g|png|webp)$/i);
+    if (match && !previews.has(String(match[1]))) previews.set(String(match[1]), row);
+  });
+  state.tables.forEach(table => Object.values(table.weeks || {}).forEach(week => {
+    (week?.items || []).forEach(item => {
+      if (!Array.isArray(item.media)) return;
+      item.media = item.media.map(media => {
+        const mediaId = String(media?.id || "");
+        const archived = archivedOriginals.get(mediaId);
+        if (!media || !archived) return media;
+        const preview = previews.get(mediaId);
+        if (!preview) return media;
+        return {
+          ...media,
+          id: "",
+          url: "",
+          originalAvailable: false,
+          fileState: "preview_only",
+          archivedOriginalId: mediaId,
+          archivedOriginalName: String(archived.original_name || media.name || "Original"),
+          sourceReference: String(archived.source_path || archived.original_name || media.sourceReference || ""),
+          previewId: String(preview.id),
+          previewName: String(preview.original_name),
+          previewType: String(preview.mime_type),
+          previewSize: Number(preview.byte_size) || 0,
+          previewUrl: `/api/planner-media/${encodeURIComponent(preview.id)}`
+        };
+      });
+    });
+  }));
+  return state;
+}
+
 function preserveOwnerOnlyPlannerFields(previousWeeks, incomingWeeks) {
   Object.entries(incomingWeeks || {}).forEach(([weekKey, incomingWeek]) => {
     const previousItems = previousWeeks?.[weekKey]?.items || [];
@@ -646,6 +687,7 @@ async function handleApi(request, response, url) {
     const user = authenticatedUser(request);
     if (!user) return sendJson(response, 401, { error: "Bitte melde dich an." });
     const stored = storedPlannerState();
+    if (stored.state) stored.state = reconcileArchivedPlannerMedia(stored.state);
     if (!stored.state || user.role === "owner") return sendJson(response, 200, stored);
     const allowedTableIds = new Set(user.tableIds);
     return sendJson(response, 200, {
@@ -658,7 +700,7 @@ async function handleApi(request, response, url) {
     if (!user) return sendJson(response, 401, { error: "Bitte melde dich an." });
     const body = await readJson(request, 25 * 1024 * 1024);
     let incoming;
-    try { incoming = sanitizedPlannerState(body.state); }
+    try { incoming = reconcileArchivedPlannerMedia(sanitizedPlannerState(body.state)); }
     catch (error) { return sendJson(response, error.statusCode || 400, { error: error.message }); }
     const previous = storedPlannerState();
     let next = incoming;
@@ -796,8 +838,8 @@ async function handleApi(request, response, url) {
     if (originalOnly) {
       if (user.role !== "owner") return sendJson(response, 403, { error: "Nur der Hauptadmin darf Originaldateien löschen." });
       if (String(row.original_name || "").startsWith(".preview-")) return sendJson(response, 400, { error: "Vorschaudateien können nicht gelöscht werden." });
-      const previewRow = database.prepare("SELECT * FROM planner_media WHERE original_name LIKE ? ORDER BY created_at DESC LIMIT 1")
-        .get(`.preview-${row.id}.%`);
+      const previewRow = database.prepare("SELECT * FROM planner_media WHERE original_name LIKE ? AND byte_size <= ? ORDER BY created_at DESC LIMIT 1")
+        .get(`.preview-${row.id}.%`, 2 * 1024 * 1024);
       if (!previewRow) return sendJson(response, 409, { error: "Das Original kann erst gelöscht werden, wenn eine Vorschau vorhanden ist." });
       const archivePath = ensureOriginalArchive(row);
       if (!archivePath) return sendJson(response, 409, { error: "Das Original konnte nicht sicher archiviert werden und wurde deshalb nicht gelöscht." });

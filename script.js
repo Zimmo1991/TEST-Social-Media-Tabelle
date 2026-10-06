@@ -1,4 +1,5 @@
 const STORAGE_KEY = "social-flow-planner-v2";
+const UI_STORAGE_KEY = "social-flow-planner-ui-v1";
 const HISTORY_DATABASE_NAME = "social-flow-planner-history";
 const HISTORY_STORE_NAME = "changes";
 const HISTORY_LIMIT = 1000;
@@ -9,6 +10,9 @@ const PLANNING_YEARS = Array.from({ length: PLANNING_END_YEAR - PLANNING_START_Y
 const MONTH_WEEKS_CACHE = new Map();
 const YEAR_VIEW_ROW_MIN_HEIGHT = 132;
 const YEAR_VIEW_ROW_MAX_HEIGHT = 650;
+const YEAR_VIEW_INITIAL_WEEKS = 4;
+const YEAR_VIEW_VIRTUALIZE_THRESHOLD = 12;
+const YEAR_VIEW_VIRTUAL_MARGIN = "900px 0px";
 const TABLE_LAYOUT_SYNC_VERSION = 2;
 const COMPLETION_PREVIEW_MAX_BYTES = 2 * 1024 * 1024;
 const COMPLETION_PREVIEW_MAX_EDGE = 1800;
@@ -43,6 +47,8 @@ let state = loadState();
 const proofreadingCache = new Map();
 const proofreadingTimers = new WeakMap();
 let proofreadingObserver = null;
+let yearWeekObserver = null;
+let yearRenderGeneration = 0;
 
 const authScreen = document.querySelector("#auth-screen");
 const appShell = document.querySelector("#app-shell");
@@ -279,9 +285,24 @@ const UNDO_LIMIT = 20;
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return saved?.tables?.length ? repairStoredMediaCounts(saved) : structuredClone(defaultState);
+    const loadedState = saved?.tables?.length ? repairStoredMediaCounts(saved) : structuredClone(defaultState);
+    try {
+      const uiPreferences = JSON.parse(localStorage.getItem(UI_STORAGE_KEY));
+      if (uiPreferences?.currentTableId) loadedState.currentTableId = String(uiPreferences.currentTableId);
+    } catch {
+      localStorage.removeItem(UI_STORAGE_KEY);
+    }
+    return loadedState;
   } catch {
     return structuredClone(defaultState);
+  }
+}
+
+function rememberCurrentTable() {
+  try {
+    localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({ currentTableId: state.currentTableId }));
+  } catch (error) {
+    console.warn("Die zuletzt geöffnete Kundentabelle konnte nicht lokal vorgemerkt werden.", error);
   }
 }
 
@@ -825,11 +846,11 @@ function textExpandButton(languageLabel) {
 
 let textOverflowRefreshFrame = 0;
 
-function scheduleTextOverflowRefresh() {
+function scheduleTextOverflowRefresh(root = tableBody) {
   cancelAnimationFrame(textOverflowRefreshFrame);
   textOverflowRefreshFrame = requestAnimationFrame(() => {
     textOverflowRefreshFrame = 0;
-    refreshTextOverflowControls();
+    refreshTextOverflowControls(root?.isConnected ? root : tableBody);
   });
 }
 
@@ -957,19 +978,28 @@ function scheduleProofreading(textarea, immediate = false) {
   proofreadingTimers.set(textarea, timer);
 }
 
-function observeVisibleProofreadingFields() {
-  proofreadingObserver?.disconnect();
-  const textareas = tableBody.querySelectorAll(".proofreading-field textarea");
+function observeProofreadingFields(root = tableBody) {
+  const textareas = root.matches?.(".proofreading-field textarea")
+    ? [root]
+    : root.querySelectorAll(".proofreading-field textarea");
   if (!("IntersectionObserver" in window)) {
     textareas.forEach(textarea => scheduleProofreading(textarea, true));
     return;
   }
-  proofreadingObserver = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting && entry.target.value.trim()) scheduleProofreading(entry.target, true);
-    });
-  }, { rootMargin: "120px" });
+  if (!proofreadingObserver) {
+    proofreadingObserver = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && entry.target.value.trim()) scheduleProofreading(entry.target, true);
+      });
+    }, { rootMargin: "120px" });
+  }
   textareas.forEach(textarea => proofreadingObserver.observe(textarea));
+}
+
+function observeVisibleProofreadingFields() {
+  proofreadingObserver?.disconnect();
+  proofreadingObserver = null;
+  observeProofreadingFields(tableBody);
 }
 
 function initials(name) {
@@ -1336,6 +1366,75 @@ function tableYearViewRowHeight(table) {
   return table.yearViewRowHeight;
 }
 
+function plannedWeekItemCount(table, year, weekNumber) {
+  if (!table) return 0;
+  if (tablePlanningCadence(table) === "monthly") {
+    return monthlyPlanOrdinals(table, year, weekNumber, "post").length
+      + monthlyPlanOrdinals(table, year, weekNumber, "story").length;
+  }
+  return Math.max(0, Math.trunc(Number(table.postsPerWeek) || 0))
+    + Math.max(0, Math.trunc(Number(table.storiesPerWeek) || 0))
+    + monthlyExtraOrdinals(table, year, weekNumber, "post").length
+    + monthlyExtraOrdinals(table, year, weekNumber, "story").length;
+}
+
+function virtualWeekPlaceholder(table, year, weekNumber, columnCount, generation) {
+  const itemCount = plannedWeekItemCount(table, year, weekNumber);
+  if (!itemCount) return "";
+  const rowHeight = tableYearViewRowHeight(table) || 165;
+  const height = Math.max(YEAR_VIEW_ROW_MIN_HEIGHT, itemCount * rowHeight);
+  return `<tr class="virtual-week-placeholder" data-virtual-year="${year}" data-virtual-week="${weekNumber}" data-virtual-generation="${generation}" data-virtual-item-count="${itemCount}" style="--virtual-week-height: ${height}px"><td colspan="${columnCount}" aria-hidden="true"></td></tr>`;
+}
+
+function rowsWithin(root) {
+  if (!root) return [];
+  return root.matches?.("tr[data-week]") ? [root] : [...root.querySelectorAll("tr[data-week]")];
+}
+
+function hydrateRenderedRows(root) {
+  restoreVisibleMedia(root);
+  scrollChangeChatsToBottom(root);
+  observeProofreadingFields(root);
+}
+
+function materializeVirtualWeek(placeholder, generation = yearRenderGeneration) {
+  if (!placeholder?.isConnected || Number(placeholder.dataset.virtualGeneration) !== generation || generation !== yearRenderGeneration) return;
+  const table = currentTable();
+  const year = Number(placeholder.dataset.virtualYear);
+  const weekNumber = Number(placeholder.dataset.virtualWeek);
+  if (!table || !Number.isInteger(year) || !Number.isInteger(weekNumber)) return;
+  const scratchBody = document.createElement("tbody");
+  scratchBody.innerHTML = renderWeekRows(table, year, weekNumber);
+  const rows = [...scratchBody.children];
+  if (!rows.length) {
+    placeholder.remove();
+    return;
+  }
+  placeholder.replaceWith(...rows);
+  rows.forEach(row => hydrateRenderedRows(row));
+  scheduleTextOverflowRefresh(tableBody);
+  scheduleChangeMessageEditExpiry();
+}
+
+function observeVirtualYearWeeks(generation) {
+  yearWeekObserver?.disconnect();
+  yearWeekObserver = null;
+  const placeholders = tableBody.querySelectorAll(`.virtual-week-placeholder[data-virtual-generation="${generation}"]`);
+  if (!placeholders.length) return;
+  if (!("IntersectionObserver" in window)) {
+    placeholders.forEach(placeholder => materializeVirtualWeek(placeholder, generation));
+    return;
+  }
+  yearWeekObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      yearWeekObserver?.unobserve(entry.target);
+      materializeVirtualWeek(entry.target, generation);
+    });
+  }, { root: tableScroll, rootMargin: YEAR_VIEW_VIRTUAL_MARGIN });
+  placeholders.forEach(placeholder => yearWeekObserver.observe(placeholder));
+}
+
 function yearWeekRows(year, weekNumber) {
   return [...tableBody.querySelectorAll(`tr[data-year="${year}"][data-week="${weekNumber}"]`)];
 }
@@ -1351,6 +1450,10 @@ function setYearViewRowHeight(table, totalHeight, itemCount, persist = true) {
   tableBody.querySelectorAll("tr[data-year][data-week]").forEach(row => {
     row.dataset.yearWeekHeight = "custom";
     row.style.setProperty("--year-week-row-height", `${rowHeight}px`);
+  });
+  tableBody.querySelectorAll(".virtual-week-placeholder").forEach(placeholder => {
+    const placeholderItemCount = Math.max(1, Number(placeholder.dataset.virtualItemCount) || 1);
+    placeholder.style.setProperty("--virtual-week-height", `${placeholderItemCount * rowHeight}px`);
   });
   if (persist) {
     syncSharedTableLayout(table);
@@ -2386,6 +2489,26 @@ function backendMediaLocationsMarkup(media) {
   return `<span class="backend-media-locations" role="cell">${locations.map(location => `<span title="${escapeHtml(location.tableName || media.tableName || "Kundentabelle")}"><strong>${location.calendarYear}</strong> · KW ${String(location.weekNumber).padStart(2, "0")}<small>${location.contentType === "story" ? "Story" : "Beitrag"}</small></span>`).join("")}</span>`;
 }
 
+function backendMediaWeekGroup(media) {
+  const location = Array.isArray(media.locations) ? media.locations[0] : null;
+  const calendarYear = Number(location?.calendarYear) || 0;
+  const weekNumber = Number(location?.weekNumber) || 0;
+  if (!calendarYear || !weekNumber) {
+    return {
+      key: `unassigned:${String(media.id || media.name || "medium")}`,
+      label: "Nicht zugeordnet",
+      assigned: false
+    };
+  }
+  const tableId = String(location?.tableId || media.tableId || location?.tableName || media.tableName || "table");
+  const tableName = String(location?.tableName || media.tableName || "Kundentabelle");
+  return {
+    key: `${tableId}:${calendarYear}:${weekNumber}`,
+    label: `${tableName} · ${calendarYear} · KW ${String(weekNumber).padStart(2, "0")}`,
+    assigned: true
+  };
+}
+
 function backendMediaRowsMarkup(mediaItems) {
   if (!mediaItems.length) return `<p class="backend-empty backend-media-empty">Noch keine Fotos, Videos oder Story-Medien hochgeladen.</p>`;
   const rowMemberships = new Map();
@@ -2401,34 +2524,41 @@ function backendMediaRowsMarkup(mediaItems) {
       .map(rowKey => ({ rowKey, count: rowMemberships.get(rowKey)?.size || 0 }))
       .filter(group => group.count > 1)
       .sort((a, b) => b.count - a.count || a.rowKey.localeCompare(b.rowKey));
-    return { media, sharedRowKey: sharedRows[0]?.rowKey || "", sharedCount: sharedRows[0]?.count || 0 };
+    return {
+      media,
+      sharedRowKey: sharedRows[0]?.rowKey || "",
+      sharedCount: sharedRows[0]?.count || 0,
+      weekGroup: backendMediaWeekGroup(media)
+    };
   });
-  return groupedMedia.map((entry, index) => {
-    const { media, sharedRowKey, sharedCount } = entry;
-    const continuesPrevious = Boolean(sharedRowKey && groupedMedia[index - 1]?.sharedRowKey === sharedRowKey);
-    const continuesNext = Boolean(sharedRowKey && groupedMedia[index + 1]?.sharedRowKey === sharedRowKey);
-    let sharedClass = "";
-    if (sharedRowKey) {
-      const positionClass = continuesPrevious && continuesNext
-        ? " shared-row-group-middle"
-        : continuesPrevious
-          ? " shared-row-group-end"
-          : continuesNext
-            ? " shared-row-group-start"
-            : " shared-row-group-single";
-      sharedClass = ` same-row-media${positionClass}`;
+  const weekGroups = [];
+  const weekGroupMap = new Map();
+  groupedMedia.forEach(entry => {
+    let group = weekGroupMap.get(entry.weekGroup.key);
+    if (!group) {
+      group = { ...entry.weekGroup, entries: [] };
+      weekGroupMap.set(entry.weekGroup.key, group);
+      weekGroups.push(group);
     }
-    const sharedHint = sharedCount ? `<em class="backend-media-row-group-label">Gemeinsame Zeile · ${sharedCount} Medien</em>` : "";
-    return `
-    <div class="backend-media-row${sharedClass}" role="row"${sharedCount ? ` title="${sharedCount} Medien stammen aus derselben Tabellenzeile."` : ""}>
-      <span class="backend-media-kind ${escapeHtml(media.kind || "photo")}" role="cell">${backendMediaKindLabel(media.kind)}</span>
-      <span class="backend-media-name" role="cell"><strong title="${escapeHtml(media.name || "Medium")}">${escapeHtml(media.name || "Medium")}</strong><small>${escapeHtml(media.tableName || "Kundentabelle")}</small>${sharedHint}</span>
-      ${backendMediaLocationsMarkup(media)}
-      ${backendMediaSizeMarkup(media)}
-      ${backendMediaAvailabilityMarkup(media)}
-      ${backendMediaFileStateMarkup(media)}
-      <span class="backend-media-actions" role="cell"><button class="backend-media-open" type="button" data-open-backend-media="${escapeHtml(media.id)}">Öffnen</button>${media.originalAvailable === false ? (media.restorableOriginal ? `<button class="backend-media-original restore" type="button" data-restore-backend-media="${escapeHtml(media.archivedOriginalId)}">Original wiederherstellen</button>` : "") : `<button class="backend-media-original delete" type="button" data-delete-backend-media="${escapeHtml(media.id)}"${media.previewAvailable ? "" : ' disabled title="Erst möglich, sobald eine Vorschau vorhanden ist."'}>Original löschen</button>`}</span>
-    </div>`;
+    group.entries.push(entry);
+  });
+  return weekGroups.map(group => {
+    const rows = group.entries.map(entry => {
+      const { media, sharedRowKey, sharedCount } = entry;
+      const sharedClass = sharedRowKey ? " same-row-media" : "";
+      const sharedHint = sharedCount ? `<em class="backend-media-row-group-label">Gemeinsame Zeile · ${sharedCount} Medien</em>` : "";
+      return `
+      <div class="backend-media-row${sharedClass}" role="row"${sharedCount ? ` title="${sharedCount} Medien stammen aus derselben Tabellenzeile."` : ""}>
+        <span class="backend-media-kind ${escapeHtml(media.kind || "photo")}" role="cell">${backendMediaKindLabel(media.kind)}</span>
+        <span class="backend-media-name" role="cell"><strong title="${escapeHtml(media.name || "Medium")}">${escapeHtml(media.name || "Medium")}</strong><small>${escapeHtml(media.tableName || "Kundentabelle")}</small>${sharedHint}</span>
+        ${backendMediaLocationsMarkup(media)}
+        ${backendMediaSizeMarkup(media)}
+        ${backendMediaAvailabilityMarkup(media)}
+        ${backendMediaFileStateMarkup(media)}
+        <span class="backend-media-actions" role="cell"><button class="backend-media-open" type="button" data-open-backend-media="${escapeHtml(media.id)}">Öffnen</button>${media.originalAvailable === false ? (media.restorableOriginal ? `<button class="backend-media-original restore" type="button" data-restore-backend-media="${escapeHtml(media.archivedOriginalId)}">Original wiederherstellen</button>` : "") : `<button class="backend-media-original delete" type="button" data-delete-backend-media="${escapeHtml(media.id)}"${media.previewAvailable ? "" : ' disabled title="Erst möglich, sobald eine Vorschau vorhanden ist."'}>Original löschen</button>`}</span>
+      </div>`;
+    }).join("");
+    return `<div class="backend-media-week-group${group.assigned ? "" : " unassigned"}" role="rowgroup" title="${escapeHtml(group.label)}">${rows}</div>`;
   }).join("");
 }
 
@@ -2490,9 +2620,10 @@ function openBackendMedia(mediaId) {
 function retainPreviewAfterOriginalDeletion(mediaId, media) {
   state.tables.forEach(table => Object.values(table.weeks || {}).forEach(week => {
     (week?.items || []).forEach(item => {
-      if (!Array.isArray(item.media)) return;
-      item.media = item.media.map(record => {
-        if (record?.id !== mediaId) return record;
+      const runtimeRecords = itemMedia(item);
+      if (!runtimeRecords.some(record => String(record?.id || "") === String(mediaId))) return;
+      item.runtimeMedia = runtimeRecords.map(record => {
+        if (String(record?.id || "") !== String(mediaId)) return record;
         if (record.url?.startsWith("blob:")) URL.revokeObjectURL(record.url);
         return {
           ...record,
@@ -2513,6 +2644,7 @@ function retainPreviewAfterOriginalDeletion(mediaId, media) {
           previewServerUrl: record.previewServerUrl || media.previewUrl
         };
       });
+      syncItemPersistentMedia(item);
     });
   }));
 }
@@ -2551,8 +2683,9 @@ async function deleteBackendMedia(mediaId, media, button) {
 function restoreArchivedOriginalInState(archivedOriginalId, restoredMedia) {
   state.tables.forEach(table => Object.values(table.weeks || {}).forEach(week => {
     (week?.items || []).forEach(item => {
-      if (!Array.isArray(item.media)) return;
-      item.media = item.media.map(record => {
+      const runtimeRecords = itemMedia(item);
+      if (!runtimeRecords.some(record => String(record?.archivedOriginalId || "") === String(archivedOriginalId))) return;
+      item.runtimeMedia = runtimeRecords.map(record => {
         if (String(record?.archivedOriginalId || "") !== String(archivedOriginalId)) return record;
         const restored = {
           ...record,
@@ -2571,6 +2704,7 @@ function restoreArchivedOriginalInState(archivedOriginalId, restoredMedia) {
         delete restored.archivedOriginalName;
         return restored;
       });
+      syncItemPersistentMedia(item);
     });
   }));
 }
@@ -3015,6 +3149,10 @@ function openSubadminDialog(user = null) {
 }
 
 function renderWorkspace() {
+  yearRenderGeneration += 1;
+  const renderGeneration = yearRenderGeneration;
+  yearWeekObserver?.disconnect();
+  yearWeekObserver = null;
   const table = currentTable();
   renderAiAgentTopStatus();
   renderTableStorageUsage(table);
@@ -3086,7 +3224,12 @@ function renderWorkspace() {
     ? `<button class="secondary-button" type="button" data-restore-period="${selectedPeriod.key}">Kalenderwoche einblenden</button>`
     : `<button class="secondary-button" type="button" data-show-hidden-weeks>Ausgeblendete Wochen anzeigen</button>`;
   if (periodsToRender.length) {
-    tableBody.innerHTML = periodsToRender.map(({ year, weekNumber }) => renderWeekRows(table, year, weekNumber)).join("");
+    const virtualizeYear = viewMode === "year" && periodsToRender.length > YEAR_VIEW_VIRTUALIZE_THRESHOLD;
+    tableBody.innerHTML = periodsToRender.map(({ year, weekNumber }, index) => {
+      if (!virtualizeYear || index < YEAR_VIEW_INITIAL_WEEKS) return renderWeekRows(table, year, weekNumber);
+      return virtualWeekPlaceholder(table, year, weekNumber, tableColumnCount, renderGeneration);
+    }).join("");
+    if (virtualizeYear) observeVirtualYearWeeks(renderGeneration);
   } else {
     tableBody.innerHTML = `<tr><td class="hidden-week-empty" colspan="${tableColumnCount}"><strong>${emptyHeading}</strong><span>Alle gespeicherten Inhalte bleiben erhalten.</span>${isOwner() ? emptyAction : ""}</td></tr>`;
   }
@@ -3105,7 +3248,9 @@ function renderWeekRows(table, year, weekNumber) {
 
   return items.map((item, itemIndex) => {
     const isStory = item.type === "story";
-    const mediaCount = Math.max(1, Math.trunc(Number(item.mediaCount) || 1));
+    const mediaRecords = itemMedia(item);
+    const hasMedia = mediaRecords.some(Boolean);
+    const mediaCount = hasMedia ? Math.max(1, mediaRecords.length, Math.trunc(Number(item.mediaCount) || 1)) : 1;
     item.mediaCount = mediaCount;
     const customValues = itemCustomValues(item);
     const weekCell = itemIndex === 0 ? `<td class="week-cell" rowspan="${items.length}">KW ${String(weekNumber).padStart(2, "0")}<small>${year}</small><span class="month-week">${monthWeekLabel(year, weekNumber)}</span>${isOwner() ? `<button class="hide-week-button" type="button" data-hide-year="${year}" data-hide-week="${weekNumber}" aria-label="KW ${String(weekNumber).padStart(2, "0")} ${year} ausblenden" title="Kalenderwoche ausblenden"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/></svg></button>` : ""}</td>` : "";
@@ -3148,7 +3293,7 @@ function renderWeekRows(table, year, weekNumber) {
     const cells = {
       week: weekCell,
       approval: `<td class="check-cell"><label class="check-control"><input class="approved-input" type="checkbox" ${item.approved ? "checked" : ""}><span class="check-box">✓</span></label><span class="status-label">${item.approved ? "Bestätigt" : "Offen"}</span><label class="needs-work-control"><span>Noch zu Bearbeiten</span><input class="needs-work-input" type="checkbox" ${item.needsWork ? "checked" : ""} aria-label="Zeile als noch zu bearbeiten markieren"><span class="needs-work-box" aria-hidden="true">✓</span></label><span class="content-type ${item.type}">${extraLabel || contentTypeLabel}</span><div class="row-action-buttons">${aiDraftButton}${rowCutButton}${rowPasteButton}</div></td>`,
-      media: `<td class="media-cell"><div class="media-list"><div class="media-slots">${Array.from({ length: mediaCount }, (_, mediaIndex) => mediaSlotHtml(mediaIndex, mediaCount > 1)).join("")}</div>${additionalMediaUploadHtml()}</div></td>`,
+      media: `<td class="media-cell"><div class="media-list ${hasMedia ? "has-media" : "is-empty"}"><div class="media-slots">${Array.from({ length: mediaCount }, (_, mediaIndex) => mediaSlotHtml(mediaIndex, mediaCount > 1)).join("")}</div>${hasMedia ? additionalMediaUploadHtml() : ""}</div></td>`,
       text: `<td class="customer-text-cell ${item.textCustomerApproved ? "customer-text-approved" : ""}">${textCell}</td>`,
       textItalian: `<td class="customer-text-cell ${item.textItalianCustomerApproved ? "customer-text-approved" : ""}">${translatedTextCell}</td>`,
       changes: `<td class="change-comments-cell">${renderChangeComments(item, table)}</td>`,
@@ -3324,8 +3469,8 @@ function scheduleChangeMessageEditExpiry() {
   changeMessageEditExpiryTimer = window.setTimeout(scheduleChangeMessageEditExpiry, Math.max(50, nextDeadline - Date.now() + 25));
 }
 
-function scrollChangeChatsToBottom() {
-  tableBody.querySelectorAll(".change-message-list").forEach(messageList => {
+function scrollChangeChatsToBottom(root = tableBody) {
+  root.querySelectorAll(".change-message-list").forEach(messageList => {
     messageList.scrollTop = messageList.scrollHeight;
   });
 }
@@ -3584,7 +3729,8 @@ async function createCompletionPreview(record) {
     if (!response.ok) throw new Error("Die Originaldatei konnte nicht für die Vorschau geladen werden.");
     return response.blob();
   });
-  if (record.type.startsWith("image/")) {
+  const mediaType = String(record.type || source.type || "");
+  if (mediaType.startsWith("image/")) {
     const image = await loadImageDrawable(source);
     try {
       return await previewBlobFromDrawable(image, image.naturalWidth || image.width, image.naturalHeight || image.height);
@@ -3592,6 +3738,7 @@ async function createCompletionPreview(record) {
       image.close?.();
     }
   }
+  if (!mediaType.startsWith("video/")) throw new Error("Für dieses Medienformat kann keine Abschlussvorschau erstellt werden.");
 
   const objectUrl = URL.createObjectURL(source);
   try {
@@ -3605,7 +3752,7 @@ async function createCompletionPreview(record) {
       video.addEventListener("error", () => reject(new Error("Aus dem Video konnte keine Vorschau gelesen werden.")), { once: true });
     });
     if (Number.isFinite(video.duration) && video.duration > 0.2) {
-      video.currentTime = Math.min(0.5, Math.max(0, video.duration / 10));
+      video.currentTime = Math.min(Math.max(0, video.duration * 0.5), Math.max(0, video.duration - 0.05));
       await new Promise(resolve => video.addEventListener("seeked", resolve, { once: true }));
     }
     return await previewBlobFromDrawable(video, video.videoWidth, video.videoHeight);
@@ -3615,7 +3762,9 @@ async function createCompletionPreview(record) {
 }
 
 async function ensureCompletionPreview(record, tableId) {
-  if (!record?.id || record.previewId) return;
+  if (!record?.id) return;
+  const existingPreviewSize = Number(record.previewSize) || 0;
+  if (record.previewId && existingPreviewSize > 0 && existingPreviewSize <= COMPLETION_PREVIEW_MAX_BYTES) return;
   const previewBlob = await createCompletionPreview(record);
   if (previewBlob.size > COMPLETION_PREVIEW_MAX_BYTES) throw new Error("Die erzeugte Vorschau ist größer als 2 MB.");
   const form = new FormData();
@@ -3658,8 +3807,6 @@ async function setItemCompleted(row, checked) {
     return;
   }
 
-  item.completed = true;
-  row.classList.add("completed-row");
   const checkbox = row.querySelector(".completed-input");
   const label = row.querySelector(".completed-status-label");
   if (checkbox) checkbox.disabled = true;
@@ -3677,6 +3824,7 @@ async function setItemCompleted(row, checked) {
         throw new Error(`Das Original „${record.name || "Medium"}“ konnte nicht automatisch entfernt werden: ${error.message}`);
       }
     }
+    item.completed = true;
     syncItemPersistentMedia(item);
     saveState();
   } catch (error) {
@@ -4087,7 +4235,9 @@ function savePendingMediaOcrText(value) {
   record.ocrText = normalizedText;
   syncItemPersistentMedia(item);
   saveState();
+  closeMediaOcrEditor();
   renderMediaRecord(record, slot.querySelector(".drop-zone"), Boolean(item.completed));
+  refreshOpenMediaViewer(slot);
 }
 
 function openMediaOcrEditor(button) {
@@ -4173,7 +4323,9 @@ function savePendingMediaNote(note) {
   record.note = normalizedNote;
   syncItemPersistentMedia(item);
   saveState();
+  closeMediaNoteEditor();
   renderMediaRecord(record, slot.querySelector(".drop-zone"), Boolean(item.completed));
+  refreshOpenMediaViewer(slot);
 }
 
 function applyMediaPreviewOrientation(media, preview, slot) {
@@ -4251,8 +4403,8 @@ function renderMediaRecord(record, zone, useCompletionPreview = false) {
   renderMediaNoteControls(record, zone);
 }
 
-function restoreVisibleMedia() {
-  tableBody.querySelectorAll("tr[data-week]").forEach(row => {
+function restoreVisibleMedia(root = tableBody) {
+  rowsWithin(root).forEach(row => {
     const item = itemDataFromRow(row);
     if (!item) return;
     row.querySelectorAll(".media-slot").forEach(slot => {
@@ -4278,6 +4430,7 @@ function showMedia(file, zone, recordUndo = true) {
   renderTableStorageUsage();
   refreshRowCutControl(zone.closest("tr[data-week]"));
   renderMediaRecord(record, zone);
+  syncAdditionalMediaControl(zone.closest("tr[data-week]"), item);
   void uploadPlannerMedia(file, item, index, record);
   return true;
 }
@@ -4355,10 +4508,25 @@ function clearMedia(zone, deleteRemote = true) {
   renderTableStorageUsage();
 }
 
+function syncAdditionalMediaControl(row, item) {
+  const mediaList = row?.querySelector(".media-list");
+  if (!mediaList || !item) return;
+  const hasMedia = itemMedia(item).some(Boolean);
+  const existingControl = mediaList.querySelector(".add-media-button");
+  if (hasMedia && !existingControl) mediaList.insertAdjacentHTML("beforeend", additionalMediaUploadHtml());
+  if (!hasMedia) existingControl?.remove();
+  mediaList.classList.toggle("has-media", hasMedia);
+  mediaList.classList.toggle("is-empty", !hasMedia);
+}
+
 function refreshMediaSlots(row, item) {
   const slotsContainer = row.querySelector(".media-slots");
   if (slotsContainer && !slotsContainer.querySelector(".media-slot")) {
     slotsContainer.insertAdjacentHTML("afterbegin", mediaSlotHtml(0));
+  }
+  if (!itemMedia(item).some(Boolean)) {
+    [...slotsContainer.querySelectorAll(".media-slot")].slice(1).forEach(slot => slot.remove());
+    item.runtimeMedia = [];
   }
   const slots = [...row.querySelectorAll(".media-slot")];
   slots.forEach((slot, index) => {
@@ -4368,6 +4536,7 @@ function refreshMediaSlots(row, item) {
   });
   item.mediaCount = slots.length;
   syncItemPersistentMedia(item);
+  syncAdditionalMediaControl(row, item);
 }
 
 function addAdditionalMedia(control, file) {
@@ -4391,6 +4560,8 @@ function addAdditionalMedia(control, file) {
 }
 
 function renderMediaViewerItem() {
+  closeMediaNoteEditor();
+  closeMediaOcrEditor();
   const media = viewerMediaItems[viewerMediaIndex];
   if (!media) return;
   const enlargedMedia = media.cloneNode(true);
@@ -4405,7 +4576,51 @@ function renderMediaViewerItem() {
   const note = String(record?.note ?? "").trim();
   const viewerItem = document.createElement("div");
   viewerItem.className = `media-viewer-item${note ? " has-note" : ""}`;
-  viewerItem.append(enlargedMedia);
+  const mediaFrame = document.createElement("div");
+  mediaFrame.className = "media-viewer-media-frame";
+  mediaFrame.append(enlargedMedia);
+  if (record && !historyPreview) {
+    const noteButton = document.createElement("button");
+    noteButton.type = "button";
+    noteButton.className = `media-note-button media-viewer-note-button${note ? " has-note" : ""}`;
+    noteButton.setAttribute("aria-label", note ? "Bemerkung zu diesem Medium bearbeiten" : "Bemerkung zu diesem Medium hinzufügen");
+    noteButton.title = note ? "Bemerkung bearbeiten" : "Bemerkung hinzufügen";
+    noteButton.innerHTML = '<span aria-hidden="true">✎</span>';
+    noteButton.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const sourceButton = slot?.querySelector(".media-note-button");
+      if (!sourceButton) return;
+      openMediaNoteEditor(sourceButton);
+      if (!pendingMediaNote?.editor) return;
+      pendingMediaNote.editor.classList.add("in-media-viewer");
+      mediaFrame.append(pendingMediaNote.editor);
+    });
+    mediaFrame.append(noteButton);
+  }
+  if (record && !historyPreview && !rolePreview) {
+    const hasOcrText = Boolean(String(record.ocrText ?? "").trim());
+    const isVideo = String(record.type ?? "").startsWith("video/");
+    const textKind = isVideo ? "Videotext" : "Bildtext";
+    const ocrButton = document.createElement("button");
+    ocrButton.type = "button";
+    ocrButton.className = `media-ocr-button media-viewer-ocr-button${hasOcrText ? " has-text" : ""}`;
+    ocrButton.setAttribute("aria-label", hasOcrText ? `Erkannten ${textKind} bearbeiten` : `Text ${isVideo ? `bei ${VIDEO_OCR_CAPTURE_PERCENT} % des Videos` : "im Bild"} erkennen`);
+    ocrButton.title = hasOcrText ? `${textKind} bearbeiten` : `Text ${isVideo ? `bei ${VIDEO_OCR_CAPTURE_PERCENT} % des Videos` : "im Bild"} erkennen`;
+    ocrButton.textContent = "OCR";
+    ocrButton.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const sourceButton = slot?.querySelector(".media-ocr-button");
+      if (!sourceButton) return;
+      openMediaOcrEditor(sourceButton);
+      if (!pendingMediaOcr?.editor) return;
+      pendingMediaOcr.editor.classList.add("in-media-viewer");
+      mediaFrame.append(pendingMediaOcr.editor);
+    });
+    mediaFrame.append(ocrButton);
+  }
+  viewerItem.append(mediaFrame);
   if (note) {
     const noteBox = document.createElement("div");
     noteBox.className = "media-viewer-note";
@@ -4424,6 +4639,17 @@ function renderMediaViewerItem() {
   mediaViewerNext.hidden = !hasMultipleMedia;
   mediaViewerPrevious.disabled = viewerMediaIndex === 0;
   mediaViewerNext.disabled = viewerMediaIndex === viewerMediaItems.length - 1;
+}
+
+function refreshOpenMediaViewer(sourceSlot) {
+  if (!mediaViewer.open || !sourceSlot) return;
+  const row = sourceSlot.closest("tr[data-week]");
+  if (!row) return;
+  const refreshedMedia = [...row.querySelectorAll(".preview img, .preview video")];
+  const refreshedIndex = refreshedMedia.findIndex(media => media.closest(".media-slot") === sourceSlot);
+  viewerMediaItems = refreshedMedia;
+  viewerMediaIndex = refreshedIndex >= 0 ? refreshedIndex : Math.min(viewerMediaIndex, Math.max(0, refreshedMedia.length - 1));
+  renderMediaViewerItem();
 }
 
 function openMediaViewer(media) {
@@ -4614,7 +4840,9 @@ navigation.addEventListener("click", event => {
     state.selectedYear = Number(table.selectedYear) || PLANNING_START_YEAR;
     state.selectedWeek = Number(table.selectedWeek) || startWeek;
   }
-  renderApp();
+  rememberCurrentTable();
+  navigation.querySelectorAll("[data-table-id]").forEach(item => item.classList.toggle("active", item.dataset.tableId === state.currentTableId));
+  renderWorkspace();
 });
 
 viewModeButtons.forEach(button => button.addEventListener("click", () => {
@@ -6248,6 +6476,8 @@ mediaViewer.addEventListener("keydown", event => {
   }
 });
 mediaViewer.addEventListener("close", () => {
+  closeMediaNoteEditor();
+  closeMediaOcrEditor();
   mediaViewerContent.replaceChildren();
   viewerMediaItems = [];
   viewerMediaIndex = 0;

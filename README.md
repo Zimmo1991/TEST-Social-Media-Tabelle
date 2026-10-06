@@ -44,6 +44,7 @@ Die Oberfläche unterstützt die aktuellen Versionen von Chrome, Edge, Firefox u
 - In der großen Vorschau mit Pfeilen durch alle hochgeladenen Medien derselben Zeile wechseln
 - Hochgeladene Medien über das kleine X samt belegtem Platzhalter entfernen; die dauerhafte Fläche „Weiteres Medium“ bleibt erhalten
 - Bilder und Videos direkt über „Weiteres Medium“ hochladen; die nächste freie Upload-Fläche bleibt automatisch verfügbar
+- Beim Abschließen einer Zeile für jedes Bild und Video automatisch eine höchstens 2 MB große Vorschau erzeugen, das Original aus dem aktiven Speicher entfernen und es über die geschützte Archivkopie samt gespeichertem Quellpfad wiederherstellbar halten
 - Spaltenbreiten innerhalb des sichtbaren Tabellenbereichs mit der Maus verändern und lokal speichern
 - Spalten durch Ziehen ihrer Überschrift als Hauptadmin neu anordnen und die Reihenfolge pro Kundentabelle speichern
 - Eigene Beitragstexte für Posts und Stories erfassen, jeweils mit der passenden Monatswoche im Eingabefeld
