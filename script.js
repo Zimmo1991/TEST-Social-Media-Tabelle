@@ -3166,9 +3166,11 @@ function renderWorkspace() {
   const storedSelectedYear = table?.selectedYear ?? state.selectedYear;
   const storedSelectedWeek = table?.selectedWeek ?? state.selectedWeek;
   const viewMode = storedViewMode === "week" ? "week" : "year";
+  const isWeekView = viewMode === "week";
   const requestedPeriodKey = periodKey(Number(storedSelectedYear) || PLANNING_START_YEAR, Number(storedSelectedWeek) || startWeek);
   const selectedPeriodIndex = Math.max(0, periods.findIndex(period => period.key === requestedPeriodKey));
   const selectedPeriod = periods[selectedPeriodIndex] ?? { year: PLANNING_START_YEAR, weekNumber: startWeek, key: periodKey(PLANNING_START_YEAR, startWeek) };
+  const firstPeriod = periods[0] ?? selectedPeriod;
   const finalPeriod = periods.at(-1) ?? selectedPeriod;
   const yearsLabel = visibleYearsLabel(visibleYears);
   state.viewMode = viewMode;
@@ -3180,22 +3182,25 @@ function renderWorkspace() {
     table.selectedWeek = state.selectedWeek;
   }
   viewModeButtons.forEach(button => button.classList.toggle("active", button.dataset.viewMode === viewMode));
-  weekPickerWrapper.hidden = viewMode !== "week";
-  previousWeekButton.hidden = viewMode !== "week";
-  nextWeekButton.hidden = viewMode !== "week";
-  previousWeekButton.disabled = selectedPeriodIndex <= 0;
-  nextWeekButton.disabled = selectedPeriodIndex >= periods.length - 1;
-  weekPicker.innerHTML = periods.map(({ year, weekNumber, key }) =>
-    `<option value="${key}" ${key === selectedPeriod.key ? "selected" : ""}>${year} · ${monthWeekLabel(year, weekNumber)} · ${String(weekNumber).padStart(2, "0")}</option>`
-  ).join("");
-  contentCard.classList.toggle("week-view", viewMode === "week");
+  weekPickerWrapper.hidden = !isWeekView;
+  previousWeekButton.hidden = !isWeekView;
+  nextWeekButton.hidden = !isWeekView;
+  previousWeekButton.disabled = !isWeekView || selectedPeriodIndex <= 0;
+  nextWeekButton.disabled = !isWeekView || selectedPeriodIndex >= periods.length - 1;
+  weekPicker.disabled = !isWeekView;
+  weekPicker.innerHTML = isWeekView
+    ? periods.map(({ year, weekNumber, key }) =>
+      `<option value="${key}" ${key === selectedPeriod.key ? "selected" : ""}>${year} · ${monthWeekLabel(year, weekNumber)} · ${String(weekNumber).padStart(2, "0")}</option>`
+    ).join("")
+    : "";
+  contentCard.classList.toggle("week-view", isWeekView);
   const weekViewRowHeight = tableWeekViewRowHeight(table);
   if (weekViewRowHeight) contentCard.style.setProperty("--week-row-height", `${weekViewRowHeight}px`);
   else contentCard.style.removeProperty("--week-row-height");
-  contentTableTitle.textContent = viewMode === "week" ? `Content-Planung · KW ${String(state.selectedWeek).padStart(2, "0")} · ${state.selectedYear}` : `Content-Jahresplanung ${yearsLabel}`;
-  contentTableDescription.textContent = viewMode === "week"
+  contentTableTitle.textContent = isWeekView ? `Content-Planung · KW ${String(state.selectedWeek).padStart(2, "0")} · ${state.selectedYear}` : `Content-Jahresplanung ${yearsLabel}`;
+  contentTableDescription.textContent = isWeekView
     ? "Eine Kalenderwoche mit maximalem Arbeitsbereich"
-    : `${monthWeekLabel(selectedPeriod.year, selectedPeriod.weekNumber)} ${selectedPeriod.year} bis ${monthWeekLabel(finalPeriod.year, finalPeriod.weekNumber)} ${finalPeriod.year}`;
+    : `${monthWeekLabel(firstPeriod.year, firstPeriod.weekNumber)} ${firstPeriod.year} bis ${monthWeekLabel(finalPeriod.year, finalPeriod.weekNumber)} ${finalPeriod.year}`;
 
   if (!table) {
     tableTitle.textContent = "Keine Kundentabelle verfügbar";
@@ -3206,7 +3211,7 @@ function renderWorkspace() {
   }
 
   tableTitle.textContent = table.name;
-  tableSubtitle.textContent = `${viewMode === "week" ? `KW ${String(state.selectedWeek).padStart(2, "0")} · ${state.selectedYear}` : yearsLabel} · ${isOwner() ? "Hauptadmin-Ansicht" : "Persönlicher Tabellenzugriff"}`;
+  tableSubtitle.textContent = `${isWeekView ? `KW ${String(state.selectedWeek).padStart(2, "0")} · ${state.selectedYear}` : yearsLabel} · ${isOwner() ? "Hauptadmin-Ansicht" : "Persönlicher Tabellenzugriff"}`;
   storiesInput.value = table.storiesPerWeek;
   postsInput.value = table.postsPerWeek;
   storiesInput.disabled = !isOwner();
@@ -3214,17 +3219,17 @@ function renderWorkspace() {
   fixedHashtagsButton.classList.toggle("has-value", Boolean(tableFixedHashtags(table).trim()));
   fixedHashtagsButton.title = tableFixedHashtags(table).trim() ? "Fester Beitragstext ist hinterlegt" : "Festen Beitragstext hinterlegen";
   const hiddenWeeks = tableHiddenWeeks(table);
-  const periodsToRender = viewMode === "week"
+  const periodsToRender = isWeekView
     ? (hiddenWeeks.includes(selectedPeriod.key) ? [] : [selectedPeriod])
     : periods.filter(period => !hiddenWeeks.includes(period.key));
-  const emptyHeading = viewMode === "week"
+  const emptyHeading = isWeekView
     ? `KW ${String(state.selectedWeek).padStart(2, "0")} · ${state.selectedYear} ist ausgeblendet`
     : "Alle Kalenderwochen sind ausgeblendet";
-  const emptyAction = viewMode === "week"
+  const emptyAction = isWeekView
     ? `<button class="secondary-button" type="button" data-restore-period="${selectedPeriod.key}">Kalenderwoche einblenden</button>`
     : `<button class="secondary-button" type="button" data-show-hidden-weeks>Ausgeblendete Wochen anzeigen</button>`;
   if (periodsToRender.length) {
-    const virtualizeYear = viewMode === "year" && periodsToRender.length > YEAR_VIEW_VIRTUALIZE_THRESHOLD;
+    const virtualizeYear = !isWeekView && periodsToRender.length > YEAR_VIEW_VIRTUALIZE_THRESHOLD;
     tableBody.innerHTML = periodsToRender.map(({ year, weekNumber }, index) => {
       if (!virtualizeYear || index < YEAR_VIEW_INITIAL_WEEKS) return renderWeekRows(table, year, weekNumber);
       return virtualWeekPlaceholder(table, year, weekNumber, tableColumnCount, renderGeneration);
